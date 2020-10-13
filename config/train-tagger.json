@@ -1,0 +1,17 @@
+{
+    "epochs_num": [
+        40,
+        20,
+        10
+    ],
+    "learning_rate": [
+        0.005,
+        0.001,
+        0.0005
+    ],
+    "weight_decay": 0.0,
+    "clip": 150.0,
+    "report_rate": 10,
+    "batch_size": 128,
+    "shuffle": true
+}

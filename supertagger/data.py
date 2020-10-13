@@ -1,5 +1,11 @@
-from typing import Iterable, List, Dict
+from typing import Iterable, List, Dict, Optional, Tuple
 from dataclasses import dataclass
+
+import discodop.tree as disco
+
+
+# Anchor symbol
+ANCHOR = "<>"
 
 
 @dataclass(frozen=True)
@@ -7,16 +13,43 @@ class STag:
     """Supertag"""
     stag_str: str
 
+    def as_tree(self) -> Tuple[disco.ParentedTree, List[Optional[str]]]:
+        """Present the supertag as a (disco-dop) tree."""
+        return disco.brackettree(self.stag_str)
+
+
+def tree_pos(
+    tree: disco.ParentedTree,
+    sent: List[Optional[str]]
+) -> Optional[str]:
+    """Retrieve the POS tag of the given tree."""
+    for child in tree.children:
+        if isinstance(child, int):
+            if sent[child] == ANCHOR:
+                return tree.label
+        else:
+            may_pos = tree_pos(child, sent)
+            if may_pos is not None:
+                return may_pos
+
 
 @dataclass(frozen=True)
 class Token:
     """Token"""
     tok_id: int     # ID of the token (basically its position in the sentence)
     word_form: str  # Word form
-    head_dist: Dict[int, float]
-                    # Head distribution
-    stag_dist: Dict[STag, float]
-                    # Supertag distribution
+    head_dist: Dict[int, float]     # Head distribution (non-empty)
+    stag_dist: Dict[STag, float]    # Supertag distribution (non-empty)
+
+    def best_head(self) -> int:
+        """Retrieve the head with the highest probability."""
+        def snd(tup): return tup[1]
+        return sorted(self.head_dist.items(), key=snd, reverse=True)[0][0]
+
+    def best_stag(self) -> STag:
+        """Retrieve the supertag with the highest probability."""
+        def snd(tup): return tup[1]
+        return sorted(self.stag_dist.items(), key=snd, reverse=True)[0][0]
 
 
 @dataclass(frozen=True)

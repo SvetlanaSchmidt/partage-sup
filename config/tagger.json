@@ -1,0 +1,13 @@
+{
+    "embedding": {
+        "dropout": 0.3
+    },
+    "lstm": {
+        "in_size": 300,
+        "out_size": 200,
+        "depth": 3,
+        "dropout": 0.5
+    },
+    "use_cfg": false,
+    "use_viterbi": false
+}
