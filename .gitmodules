@@ -1,0 +1,3 @@
+[submodule "Multilingual_TWG_Parsing"]
+	path = Multilingual_TWG_Parsing
+	url = git@github.com:TaniaBladier/Multilingual_TWG_Parsing.git
