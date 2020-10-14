@@ -120,20 +120,9 @@ class PackedSeqDropout(nn.Module):
 class Score(nn.Module):
     """Scoring module"""
 
-    def __init__(self, config, tag_num: int):
+    def __init__(self, in_size: int, out_size: int):
         super().__init__()
-
-        # Score layer
-        self.score_layer = nn.Linear(config['lstm']['out_size']*2, tag_num)
-
-        # # CRF layer
-        # use_crf = config['use_cfg']
-        # use_viterbi = config['use_viterbi']
-        # if use_crf:
-        #     self.crf = CRF.new(tag_num)
-        # else:
-        #     self.crf = None
-        # self.use_viterbi = use_crf and use_viterbi
+        self.score_layer = nn.Linear(in_size, out_size)
 
     def score_packed(self, seq: PackedSequence) -> PackedSequence:
         # Apply the linear layer to each hidden vector in the packed sequence
@@ -150,60 +139,9 @@ class Score(nn.Module):
             seq.unsorted_indices
         )
 
-    # def unpack(self, packed_seq: PackedSequence) -> List[Tensor]:
-    #     # Transform the result to a padded matrix
-    #     scores, lengths = rnn.pad_packed_sequence(
-    #         packed_seq,
-    #         batch_first=True
-    #     )
-    #     # Split the batch of scores into a list of score matrices,
-    #     # one matrix per sentence, while respectiing the length
-    #     # (padding information)
-    #     return [
-    #         sent_scores[:length]
-    #         for sent_scores, length in zip(scores, lengths)
-    #     ]
-
-    # def marginals(self, embs: PackedSequence) -> List[Tensor]:
-    #     """A variant of the `scores` method which applies the CRF layer
-    #     to calculate marginal scores.
-
-    #     If CRF is not enabled, `marginals` is equivalent to `scores`
-    #     (i.e., CRF behaves as an identity function).
-    #     """
-    #     scores = self.scores_packed(embs)
-    #     if self.crf:
-    #         return self.crf.marginals_packed(scores)
-    #     else:
-    #         return self.unpack(scores)
-
     def forward(self, seq: PackedSequence) -> PackedSequence:
         scores = self.score_packed(seq)
         return scores
-        # return self.unpack(scores)
-
-    # def tag(self, sent: Sent) -> Sequence[str]:
-    #     """Predict the tags in the given sentence.
-
-    #     Uses marginal scores or Viterbi decoding, depending on the
-    #     configuration of the tagger.
-    #     """
-    #     with torch.no_grad():
-    #         with eval_on(self):
-    #             if self.use_viterbi:
-    #                 scores = self.scores([sent])[0]
-    #                 tags = list(map(
-    #                     self.tag_enc.decode,
-    #                     self.crf.viterbi(scores)
-    #                 ))
-    #             else:
-    #                 scores = self.marginals([sent])[0]
-    #                 tags = []
-    #                 for score in scores:
-    #                     ix = torch.argmax(score).item()
-    #                     tags.append(self.tag_enc.decode(ix))
-    #             assert len(tags) == len(sent)
-    #             return tags
 
 
 ##################################################
@@ -229,7 +167,8 @@ class Tagger(nn.Module, Neural[
             Embed(word_emb),
             Context(config),
             PackedSeqDropout(config['lstm']['dropout']),
-            Score(config, len(tagset)),
+            Score(config['lstm']['out_size']*2, len(tagset)),
+            # Score(config['lstm']['in_size'], len(tagset)),
         )
 
     def forward(self, batch: List[Sent]) -> List[Tensor]:
