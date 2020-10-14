@@ -48,6 +48,7 @@ def eval_on(model: nn.Module):
 # def batch_loader(data_set: Union[IterableDataset, Dataset],
 T = TypeVar("T")
 def batch_loader(
+    # TODO: shuffling doesn't work on IterableDataset
     data_set: Union[IterableDataset[T], Dataset[T]],
     batch_size: int = 32,
     shuffle: bool = False,

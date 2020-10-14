@@ -11,33 +11,38 @@ from torch.utils.data import Dataset
 
 # import supertagger.neural.proto
 from supertagger.neural.proto import \
-    Score, Neural, Inp, Out, Y, Z, S
+    Score, Neural, Inp, Out, Y, B, Z, S
 from supertagger.neural.utils import \
     batch_loader, simple_loader, eval_on
 
 
 def batch_loss(
-    neural: Neural[Inp, Out, Y, Z, S],
+    neural: Neural[Inp, Out, Y, B, Z, S],
     batch: Iterable[Tuple[Inp, Out]]
 ) -> torch.Tensor:
-    loss = torch.tensor(0.0, dtype=torch.float)
-    for inp, out in batch:
-        # x = neural.embed(inp)
-        y = neural.forward(inp)
-        z = neural.encode(out)
-        loss = loss + neural.loss(z, y)
-    return loss
+    inputs = [inp for inp, _ in batch]
+    golds = [neural.encode(out) for _, out in batch]
+    return neural.loss(golds, neural.forward(inputs))
+    # loss = torch.tensor(0.0, dtype=torch.float)
+    # for inp, out in batch:
+    #     # x = neural.embed(inp)
+    #     y = neural.forward(inp)
+    #     z = neural.encode(out)
+    #     loss = loss + neural.loss(z, y)
+    # return loss
 
 
+# TODO: scores could be calculated in batches
 def batch_score(
-    neural: Neural[Inp, Out, Y, Z, S],
+    neural: Neural[Inp, Out, Y, B, Z, S],
     batch: Iterable[Tuple[Inp, Out]]
 ) -> S:
     with torch.no_grad():
         with eval_on(neural.model):
             total = None
             for inp, gold in batch:
-                pred = neural.decode(neural.forward(inp))
+                pred_enc = neural.split(neural.forward([inp]))[0]
+                pred = neural.decode(pred_enc)
                 score = neural.score(gold, pred)
                 if total is None:
                     total = score
@@ -48,7 +53,7 @@ def batch_score(
 
 
 def train(
-    neural: Neural[Inp, Out, Y, Z, S],
+    neural: Neural[Inp, Out, Y, B, Z, S],
     train_set: Dataset[Tuple[Inp, Out]],
     dev_set: Dataset[Tuple[Inp, Out]],
         # model: nn.Module,
@@ -77,7 +82,6 @@ def train(
 
     # create batched loader
     batches = batch_loader(
-        # Use no shuffling, it doesn't work with iterable datasets
         train_set,
         batch_size=batch_size,
         shuffle=shuffle,

@@ -253,8 +253,8 @@ class TopModel(nn.Module):
 class Tagger(Neural[
     Sent,
     List[str],
-    # PackedSequence,
     Tensor,
+    List[Tensor],
     Tensor,
     AccScore,
 ]):
@@ -267,8 +267,11 @@ class Tagger(Neural[
         # Neural model
         self.model = TopModel(config, len(tagset), word_emb)
 
-    def forward(self, sent: Sent) -> Tensor:
-        return self.model([sent])[0]
+    def forward(self, batch: List[Sent]) -> List[Tensor]:
+        return self.model(batch)
+
+    def split(self, batch: List[Tensor]) -> List[Tensor]:
+        return batch
 
     def decode(self, scores: Tensor) -> List[str]:
         tags = []
@@ -284,8 +287,11 @@ class Tagger(Neural[
             target_pos_ixs.append(self.tag_enc.encode(tag))
         return torch.tensor(target_pos_ixs)  # .to(device)
 
-    def loss(self, gold: Tensor, pred: Tensor) -> Tensor:
-        return nn.CrossEntropyLoss()(pred, gold)
+    def loss(self, gold: List[Tensor], pred: List[Tensor]) -> Tensor:
+        return nn.CrossEntropyLoss()(
+            torch.cat(pred),
+            torch.cat(gold),
+        )
 
     def score(self, gold: List[str], pred: List[str]) -> AccScore:
         k, n = 0, 0
@@ -294,79 +300,3 @@ class Tagger(Neural[
                 k += 1
             n += 1
         return AccScore(tp_num=k, all_num=n)
-
-
-##################################################
-# Accuracy/loss
-##################################################
-
-
-# # Dataset element: input sentence and target list of tags
-# DataElem = Tuple[Sent, List[str]]
-
-
-# def batch_loss(tagger: Tagger, data_set: Iterable[DataElem]):
-#     """Calculate the total loss of the model on the given dataset."""
-#     # CPU/GPU device
-#     device = get_device()
-#     # Calculate the target language identifiers over the entire dataset
-#     # and determine the inputs to run the model on
-#     inputs = []
-#     target_pos_ixs = []
-#     for sent, poss in data_set:
-#         inputs.append(sent)
-#         for pos in poss:
-#             target_pos_ixs.append(tagger.tag_enc.encode(pos))
-#     # Predict the scores for all the sentences in parallel
-#     predicted_scores = torch.cat(
-#         tagger.marginals(inputs)
-#     )
-#     # Calculate the loss
-#     return nn.CrossEntropyLoss()(
-#         predicted_scores, torch.tensor(target_pos_ixs).to(device)
-#     )
-
-
-# def neg_lll(tagger: Tagger, data_set: Iterable[DataElem]):
-#     """Negative log-likelihood of the model over the given dataset."""
-#     # time0 = timeit.default_timer()
-#     inputs = (sent for sent, _ in data_set)
-#     targets = (
-#         [tagger.tag_enc.encode(pos) for pos in poss]
-#         for _, poss in data_set
-#     )
-#     # time1 = timeit.default_timer()
-#     # print('Preprocessing time: ', time1 - time0)
-#     scores = tagger.scores_packed(inputs)
-#     # time2 = timeit.default_timer()
-#     # print('Scoring time: ', time2 - time1)
-#     if not tagger.crf:
-#         raise RuntimeError("neg_lll can be only used with a CRF layer!")
-#     log_total = tagger.crf.log_likelihood_packed(scores, targets)
-#     # time3 = timeit.default_timer()
-#     # print('CRF Time: ', time3 - time2)
-#     return -log_total
-#     # log_total = torch.tensor(0.0)
-#     # for sent in data_set:
-#     #     words, poss = zip(*sent)
-#     #     scores = tagger.scores([words])[0]
-#     #     targets = list(map(tagger.enc.encode, poss))
-#     #     log_total -= tagger.crf.log_likelihood(scores, targets)
-#     # return log_total
-
-
-# def accuracy(tagger: Tagger, data_set: Iterable[DataElem]) -> float:
-#     """Calculate the accuracy of the model on the given list of sentences.
-
-#     The accuracy is defined as the percentage of the names in the data_set
-#     for which the model predicts the correct tag.
-#     """
-#     k, n = 0., 0.
-#     for sent, gold_poss in data_set:
-#         pred_poss = tagger.tag(sent)
-#         assert len(gold_poss) == len(pred_poss)
-#         for (pred_pos, gold_pos) in zip(pred_poss, gold_poss):
-#             if pred_pos == gold_pos:
-#                 k += 1.
-#             n += 1.
-#     return k / n

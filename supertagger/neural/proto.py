@@ -1,4 +1,4 @@
-from typing import TypeVar, Protocol, Iterable, Tuple
+from typing import TypeVar, Protocol, Iterable, Tuple, List
 from abc import abstractmethod
 
 import torch
@@ -36,26 +36,23 @@ class Score(Protocol):   # NOTE: Why not 'Protocol[A]'?
 ##################################################
 
 
-Inp = TypeVar('Inp', contravariant=True)
+# Inp = TypeVar('Inp', contravariant=True)
+Inp = TypeVar('Inp')
 Out = TypeVar('Out')
-# X = TypeVar('X')
 Y = TypeVar('Y')
+B = TypeVar('B')
 Z = TypeVar('Z')
 S = TypeVar('S', bound=Score, covariant=True)
-class Neural(Protocol[Inp, Out, Y, Z, S]):
+class Neural(Protocol[Inp, Out, Y, B, Z, S]):
 
     model: nn.Module    # The underlying neural module
 
-    # @abstractmethod
-    # def embed(self, inp: Inp) -> X:
-    #     pass
-
-    # @abstractmethod
-    # def forward(self, x: X) -> Y:
-    #     pass
+    @abstractmethod
+    def forward(self, inp: List[Inp]) -> B:
+        pass
 
     @abstractmethod
-    def forward(self, inp: Inp) -> Y:
+    def split(self, batch: B) -> List[Y]:
         pass
 
     @abstractmethod
@@ -67,7 +64,7 @@ class Neural(Protocol[Inp, Out, Y, Z, S]):
         pass
 
     @abstractmethod
-    def loss(self, gold: Z, pred: Y) -> Tensor:
+    def loss(self, gold: List[Z], pred: B) -> Tensor:
         pass
 
     @abstractmethod
