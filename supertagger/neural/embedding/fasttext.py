@@ -1,4 +1,4 @@
-import fasttext
+import fasttext  # type: ignore
 
 from supertagger.neural.embedding.pretrained import PreTrained
 

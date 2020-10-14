@@ -2,8 +2,7 @@ from typing import Sequence
 
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn
-
-from supertagger.neural.utils import TT
+from torch import Tensor
 
 
 class BiLSTM(nn.Module):
@@ -47,7 +46,7 @@ class BiLSTM(nn.Module):
     #
     #  -------- forward -----------
     #
-    def forward(self, batch: Sequence[TT]) -> rnn.PackedSequence:
+    def forward(self, batch: Sequence[Tensor]) -> rnn.PackedSequence:
         """Contextualize the embeddings for each sentence in the batch.
 
         The method takes on input a list of tensors with shape N x *,

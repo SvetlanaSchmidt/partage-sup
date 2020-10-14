@@ -3,12 +3,14 @@ from typing import Set, Tuple, List
 from datetime import datetime
 import json
 
-from supertagger.neural.training import train
+# from supertagger.neural.training import train
+from supertagger.neural.pro_training import train
 
 from supertagger.neural.embedding.fasttext import FastText
 
 # from supertagger.mwe_identifier.seq import IobTagger
-from supertagger.tagger.model import Tagger, batch_loss, neg_lll, accuracy
+# from supertagger.tagger.model import Tagger, batch_loss, neg_lll, accuracy
+from supertagger.tagger.pro_model import Tagger
 
 # from supertagger.tasks.utils import load_data, load_config
 
@@ -42,12 +44,13 @@ def load_config(path: str) -> dict:
 def preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
     """Prepare the sentence for further processing"""
     inp = [tok.word_form for tok in sent]
-    out = [
+    out = []
+    for tok in sent:
         # First convert the supertag to a tree, than retrieve
         # the POS tag
-        data.tree_pos(*(tok.best_stag().as_tree()))
-        for tok in sent
-    ]
+        pos = data.tree_pos(*(tok.best_stag().as_tree()))
+        assert pos is not None
+        out.append(pos)
     return inp, out
 
 
@@ -105,8 +108,8 @@ def do_train_tagger(args):
             tagger,
             train_set,
             dev_set,
-            neg_lll if args.lll else batch_loss,
-            [lambda x, y: accuracy(x, y)],
+            # neg_lll if args.lll else batch_loss,
+            # [lambda x, y: accuracy(x, y)],
             epoch_num=n,
             learning_rate=lr,
             weight_decay=train_cfg['weight_decay'],

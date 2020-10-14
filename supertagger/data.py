@@ -1,7 +1,7 @@
 from typing import Iterable, List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
-import discodop.tree as disco
+import discodop.tree as disco  # type: ignore
 
 
 # Anchor symbol
@@ -31,6 +31,7 @@ def tree_pos(
             may_pos = tree_pos(child, sent)
             if may_pos is not None:
                 return may_pos
+    return None
 
 
 @dataclass(frozen=True)
@@ -52,10 +53,11 @@ class Token:
         return sorted(self.stag_dist.items(), key=snd, reverse=True)[0][0]
 
 
-@dataclass(frozen=True)
-class Sent:
-    """Sentence"""
-    tokens: List[Token]
+# @dataclass(frozen=True)
+# class Sent:
+#     """Sentence"""
+#     tokens: List[Token]
+Sent = List[Token]
 
 
 def read_supertags(path: str) -> Iterable[Sent]:

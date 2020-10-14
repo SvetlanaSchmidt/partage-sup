@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
-
-from supertagger.neural.utils import TT
+from torch import Tensor
 
 
 class PreTrained(ABC, nn.Module):
@@ -17,8 +16,8 @@ class PreTrained(ABC, nn.Module):
 
     Methods
     ----------
-    - forward(self, word: str) -> TT
-    - forwards(self, words: list) -> TT
+    - forward(self, word: str) -> Tensor
+    - forwards(self, words: list) -> Tensor
     - abs: load_model(self, file_path: str)
     - abs: embedding_dim(self) -> int
     - abs: embedding_num(self) -> int
@@ -45,9 +44,8 @@ class PreTrained(ABC, nn.Module):
     #
     #  -------- forward -----------
     #
-    def forward(self, word: str) -> TT:
+    def forward(self, word: str) -> Tensor:
         """Embed single given word."""
-
         emb = torch.tensor(self.model[word], dtype=torch.float)
         return self.dropout(emb)
 
@@ -55,7 +53,7 @@ class PreTrained(ABC, nn.Module):
     #
     #  -------- forwards -----------
     #
-    def forwards(self, words: list) -> TT:
+    def forwards(self, words: list) -> Tensor:
         """Embed multiply given words."""
 
         emb: list = []
