@@ -1,4 +1,4 @@
-from typing import TypeVar, Protocol, Iterable, Tuple, List
+from typing import TypeVar, Protocol, Iterable, Tuple, List, Any
 from abc import abstractmethod
 
 import torch
@@ -7,27 +7,21 @@ import torch.nn as nn
 
 
 ##################################################
-# Score protocol
+# ScoreStats protocol
 ##################################################
 
 
-A = TypeVar('A', bound='Score')
-class Score(Protocol):   # NOTE: Why not 'Protocol[A]'?
+A = TypeVar('A', bound='ScoreStats')
+class ScoreStats(Protocol):   # NOTE: Why not 'Protocol[A]'?
 
     @abstractmethod
     def add(self: A, other: A) -> A:
-        """Return the sum of two scores."""
+        """Return the sum of two score stats."""
         raise NotImplementedError
 
-    # @classmethod
-    # @abstractmethod
-    # def zero(cls) -> A:
-    #     """Return zero score (neural element of addition)."""
-    #     raise NotImplementedError
-
     @abstractmethod
-    def as_float(self: A) -> float:
-        """Export the score as a float."""
+    def as_score(self: A) -> float:
+        """Export score stats as a float score."""
         raise NotImplementedError
 
 
@@ -42,10 +36,8 @@ Out = TypeVar('Out')
 Y = TypeVar('Y')
 B = TypeVar('B')
 Z = TypeVar('Z')
-S = TypeVar('S', bound=Score, covariant=True)
+S = TypeVar('S', bound=ScoreStats, covariant=True)
 class Neural(Protocol[Inp, Out, Y, B, Z, S]):
-
-    model: nn.Module    # The underlying neural module
 
     @abstractmethod
     def forward(self, inp: List[Inp]) -> B:
@@ -69,4 +61,13 @@ class Neural(Protocol[Inp, Out, Y, B, Z, S]):
 
     @abstractmethod
     def score(self, gold: Out, pred: Out) -> S:
+        pass
+
+    @abstractmethod
+    def module(self) -> nn.Module:
+        """Return the `nn.Module` component of the neural model.
+
+        If the neural model is a `nn.Module` itself, just
+        `return self`.
+        """
         pass

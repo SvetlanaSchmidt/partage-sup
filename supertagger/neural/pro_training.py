@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 
 # import supertagger.neural.proto
 from supertagger.neural.proto import \
-    Score, Neural, Inp, Out, Y, B, Z, S
+    ScoreStats, Neural, Inp, Out, Y, B, Z, S
 from supertagger.neural.utils import \
     batch_loader, simple_loader, eval_on
 
@@ -38,7 +38,7 @@ def batch_score(
     batch: Iterable[Tuple[Inp, Out]]
 ) -> S:
     with torch.no_grad():
-        with eval_on(neural.model):
+        with eval_on(neural.module()):
             total = None
             for inp, gold in batch:
                 pred_enc = neural.split(neural.forward([inp]))[0]
@@ -56,11 +56,6 @@ def train(
     neural: Neural[Inp, Out, Y, B, Z, S],
     train_set: Dataset[Tuple[Inp, Out]],
     dev_set: Dataset[Tuple[Inp, Out]],
-        # model: nn.Module,
-        # train_set: IterableDataset,
-        # dev_set: IterableDataset,
-        # batch_loss: callable,
-        # accuracies: List[callable],
     learning_rate: float = 2e-3,
     weight_decay: float = 0.01,
     clip: float = 5.0,
@@ -75,7 +70,7 @@ def train(
     # choose Adam for optimization
     # https://pytorch.org/docs/stable/optim.html#torch.optim.Adam
     optimizer = Adam(
-        neural.model.parameters(),
+        neural.module().parameters(),
         lr=learning_rate,
         weight_decay=weight_decay,
     )
@@ -155,8 +150,8 @@ def train(
                 msg.format(
                     k=t + 1,
                     tl=train_loss,
-                    ta=train_score.as_float(),
-                    da=dev_score.as_float() if dev_score else 0.,
+                    ta=train_score.as_score(),
+                    da=dev_score.as_score() if dev_score else 0.,
                     ti=datetime.now() - time_begin
                 )
             )

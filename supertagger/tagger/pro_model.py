@@ -15,7 +15,7 @@ from supertagger.neural.utils import get_device, eval_on
 # from supertagger.neural.crf import CRF
 from supertagger.neural.bilstm import BiLSTM
 
-from supertagger.neural.proto import Score, Neural
+from supertagger.neural.proto import ScoreStats, Neural
 
 # from supertagger.data import Sent
 
@@ -34,24 +34,19 @@ Sent = List[str]
 
 
 @dataclass
-class AccScore(Score):
-
-    """Accuracy score"""
+class AccStats(ScoreStats):
+    """Accuracy statistics"""
 
     tp_num: int
     all_num: int
 
     def add(self, other):
-        return AccScore(
+        return AccStats(
             self.tp_num + other.tp_num,
             self.all_num + other.all_num
         )
 
-    # @classmethod
-    # def zero(cls):
-    #     return cls(0, 0)
-
-    def as_float(self):
+    def as_score(self):
         return self.tp_num / self.all_num
 
 
@@ -60,11 +55,11 @@ class AccScore(Score):
 ##################################################
 
 
-class EmbeddingModel(nn.Module):
-    """TODO"""
+class Embed(nn.Module):
+    """Embedding module"""
 
     def __init__(self, word_emb: PreTrained):
-        super(EmbeddingModel, self).__init__()
+        super(Embed, self).__init__()
 
         # Store the word embedding module
         self.word_emb = word_emb
@@ -89,27 +84,46 @@ class EmbeddingModel(nn.Module):
         return rnn.pack_sequence(batch_embs, enforce_sorted=False)
 
 
-class ScoringModel(nn.Module):
-    """TODO"""
+class Context(nn.Module):
+    """Contextualization module"""
 
-    def __init__(self, config, tag_num: int):
-        super(ScoringModel, self).__init__()
-
-        # Forward and backward LSTMs
-        self.forward_lstm = BiLSTM(
+    def __init__(self, config):
+        super().__init__()
+        self.bilstm = BiLSTM(
             in_size=config['lstm']['in_size'],
             out_size=config['lstm']['out_size'],
             depth=config['lstm']['depth'],
             dropout=config['lstm']['dropout'],
         )
 
-        # Hidden vectors dropout.
-        self.hid_dropout = nn.Dropout(
-            p=config['lstm']['dropout'], inplace=False)
+    def forward(self, embs: PackedSequence) -> PackedSequence:
+        return self.bilstm.forward_raw(embs)
 
-        # TODO: add final hidden dropout in dep_parser (see above)?
 
-        # Scoring layer
+class PackedSeqDropout(nn.Module):
+    """Packed sequence dropout"""
+
+    def __init__(self, dropout: float):
+        super().__init__()
+        self.hid_dropout = nn.Dropout(p=dropout, inplace=False)
+
+    def forward(self, seq: PackedSequence) -> PackedSequence:
+        seq_data = self.hid_dropout(seq.data)
+        return rnn.PackedSequence(
+            seq_data,
+            seq.batch_sizes,
+            seq.sorted_indices,
+            seq.unsorted_indices
+        )
+
+
+class Score(nn.Module):
+    """Scoring module"""
+
+    def __init__(self, config, tag_num: int):
+        super().__init__()
+
+        # Score layer
         self.score_layer = nn.Linear(config['lstm']['out_size']*2, tag_num)
 
         # # CRF layer
@@ -121,56 +135,19 @@ class ScoringModel(nn.Module):
         #     self.crf = None
         # self.use_viterbi = use_crf and use_viterbi
 
-    def scores_packed(self, packed_embs: PackedSequence) -> PackedSequence:
-        """The forward calculation over a packed sequence of embeddings.
-
-        NOTE: This method does not apply the CRF layer.  For a variant
-        which calculates CRF-based marginal scores, see `marginals`.
-
-        Args:
-            TODO
-
-        Returns:
-            a packed sequence of score tensors
-        """
-        # # CPU/GPU device
-        # device = get_device()
-
-        # # We first create embeddings for each sentence
-        # batch_embs = [
-        #     self.word_emb.forwards(sent).to(device)
-        #     for sent in batch
-        # ]
-
-        # # Assert that, for each sentence in the batch, for each embedding,
-        # # its size is correct
-        # emb_size = self.word_emb.embedding_dim()
-        # for sent_emb in batch_embs:
-        #     assert sent_emb.shape[1] == emb_size
-
-        # # Create the corresponding packed sequence
-        # packed_embs = rnn.pack_sequence(batch_embs, enforce_sorted=False)
-
-        # Calculate the hidden representations
-        packed_hids = self.forward_lstm.forward_raw(packed_embs)
-
-        # Apply dropout to the hidden vectors (this only has effect
-        # in the training mode)
-        packed_hids_data = self.hid_dropout(packed_hids.data)
-
-        # Apply the linear layer to each hidden vector in the batch
+    def score_packed(self, seq: PackedSequence) -> PackedSequence:
+        # Apply the linear layer to each hidden vector in the packed sequence
         # in order the get the final scores
-        scores_data = self.score_layer(packed_hids_data)
-
+        scores_data = self.score_layer(seq.data)
         # Create a packed sequence from the result.  According to PyTorch
         # documentation, this should be never done, but how to do that
         # differently?  Of course we *could* do that after padding the
         # packed sequence, but this seems suboptimal.
         return rnn.PackedSequence(
             scores_data,
-            packed_hids.batch_sizes,
-            packed_hids.sorted_indices,
-            packed_hids.unsorted_indices
+            seq.batch_sizes,
+            seq.sorted_indices,
+            seq.unsorted_indices
         )
 
     def unpack(self, packed_seq: PackedSequence) -> List[Tensor]:
@@ -200,8 +177,8 @@ class ScoringModel(nn.Module):
     #     else:
     #         return self.unpack(scores)
 
-    def forward(self, embs: PackedSequence) -> List[Tensor]:
-        scores = self.scores_packed(embs)
+    def forward(self, seq: PackedSequence) -> List[Tensor]:
+        scores = self.score_packed(seq)
         return self.unpack(scores)
 
     # def tag(self, sent: Sent) -> Sequence[str]:
@@ -228,47 +205,41 @@ class ScoringModel(nn.Module):
     #             return tags
 
 
-class TopModel(nn.Module):
-    """TODO"""
-
-    def __init__(self, config, tag_num: int, word_emb: PreTrained):
-        # Encoding (mapping between tags and integers)
-        # self.tag_enc = Encoding(tagset)
-
-        super(TopModel, self).__init__()
-
-        # Neural sub-modules
-        self.emb = EmbeddingModel(word_emb)
-        self.score = ScoringModel(config, tag_num)
-
-    def forward(self, batch: List[Sent]) -> List[Tensor]:
-        return self.score(self.emb(batch))
-
-
 ##################################################
 # Tagger
 ##################################################
 
 
-class Tagger(Neural[
+class Tagger(nn.Module, Neural[
     Sent,
     List[str],
     Tensor,
     List[Tensor],
     Tensor,
-    AccScore,
+    AccStats,
 ]):
-    # Tagging model
-    model: TopModel
-
     def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
+        # Required by nn.Module
+        super().__init__()
         # Encoding (mapping between tags and integers)
         self.tag_enc = Encoding(tagset)
-        # Neural model
-        self.model = TopModel(config, len(tagset), word_emb)
+        # Neural sub-modules
+        self.net = nn.Sequential(
+            Embed(word_emb),
+            Context(config),
+            PackedSeqDropout(config['lstm']['dropout']),
+            Score(config, len(tagset)),
+        )
+        # self.emb = Embed(word_emb)
+        # self.ctx = Context(config)
+        # self.drp = PackedSeqDropout(config['lstm']['dropout'])
+        # self.sco = Score(config, len(tagset))
 
     def forward(self, batch: List[Sent]) -> List[Tensor]:
-        return self.model(batch)
+        return self.net(batch)
+        # return self.sco(self.drp(self.ctx(
+        #     self.emb(batch)
+        # )))
 
     def split(self, batch: List[Tensor]) -> List[Tensor]:
         return batch
@@ -288,15 +259,19 @@ class Tagger(Neural[
         return torch.tensor(target_pos_ixs)  # .to(device)
 
     def loss(self, gold: List[Tensor], pred: List[Tensor]) -> Tensor:
+        assert len(gold) == len(pred)
         return nn.CrossEntropyLoss()(
             torch.cat(pred),
             torch.cat(gold),
         )
 
-    def score(self, gold: List[str], pred: List[str]) -> AccScore:
+    def score(self, gold: List[str], pred: List[str]) -> AccStats:
         k, n = 0, 0
         for (pred_tag, gold_tag) in zip(pred, gold):
             if pred_tag == gold_tag:
                 k += 1
             n += 1
-        return AccScore(tp_num=k, all_num=n)
+        return AccStats(tp_num=k, all_num=n)
+
+    def module(self):
+        return self
