@@ -11,8 +11,8 @@ from torch.nn.utils.rnn import PackedSequence
 from supertagger.neural.embedding.pretrained import PreTrained
 
 from supertagger.neural.encoding import Encoding
-from supertagger.neural.utils import get_device, eval_on
-# from supertagger.neural.crf import CRF
+from supertagger.neural.utils import get_device, eval_on, unpack
+from supertagger.neural.crf import CRF
 from supertagger.neural.bilstm import BiLSTM
 
 from supertagger.neural.proto import ScoreStats, Neural
@@ -150,19 +150,19 @@ class Score(nn.Module):
             seq.unsorted_indices
         )
 
-    def unpack(self, packed_seq: PackedSequence) -> List[Tensor]:
-        # Transform the result to a padded matrix
-        scores, lengths = rnn.pad_packed_sequence(
-            packed_seq,
-            batch_first=True
-        )
-        # Split the batch of scores into a list of score matrices,
-        # one matrix per sentence, while respectiing the length
-        # (padding information)
-        return [
-            sent_scores[:length]
-            for sent_scores, length in zip(scores, lengths)
-        ]
+    # def unpack(self, packed_seq: PackedSequence) -> List[Tensor]:
+    #     # Transform the result to a padded matrix
+    #     scores, lengths = rnn.pad_packed_sequence(
+    #         packed_seq,
+    #         batch_first=True
+    #     )
+    #     # Split the batch of scores into a list of score matrices,
+    #     # one matrix per sentence, while respectiing the length
+    #     # (padding information)
+    #     return [
+    #         sent_scores[:length]
+    #         for sent_scores, length in zip(scores, lengths)
+    #     ]
 
     # def marginals(self, embs: PackedSequence) -> List[Tensor]:
     #     """A variant of the `scores` method which applies the CRF layer
@@ -177,9 +177,10 @@ class Score(nn.Module):
     #     else:
     #         return self.unpack(scores)
 
-    def forward(self, seq: PackedSequence) -> List[Tensor]:
+    def forward(self, seq: PackedSequence) -> PackedSequence:
         scores = self.score_packed(seq)
-        return self.unpack(scores)
+        return scores
+        # return self.unpack(scores)
 
     # def tag(self, sent: Sent) -> Sequence[str]:
     #     """Predict the tags in the given sentence.
@@ -230,16 +231,9 @@ class Tagger(nn.Module, Neural[
             PackedSeqDropout(config['lstm']['dropout']),
             Score(config, len(tagset)),
         )
-        # self.emb = Embed(word_emb)
-        # self.ctx = Context(config)
-        # self.drp = PackedSeqDropout(config['lstm']['dropout'])
-        # self.sco = Score(config, len(tagset))
 
     def forward(self, batch: List[Sent]) -> List[Tensor]:
-        return self.net(batch)
-        # return self.sco(self.drp(self.ctx(
-        #     self.emb(batch)
-        # )))
+        return unpack(self.net(batch))
 
     def split(self, batch: List[Tensor]) -> List[Tensor]:
         return batch
@@ -264,6 +258,68 @@ class Tagger(nn.Module, Neural[
             torch.cat(pred),
             torch.cat(gold),
         )
+
+    def score(self, gold: List[str], pred: List[str]) -> AccStats:
+        k, n = 0, 0
+        for (pred_tag, gold_tag) in zip(pred, gold):
+            if pred_tag == gold_tag:
+                k += 1
+            n += 1
+        return AccStats(tp_num=k, all_num=n)
+
+    def module(self):
+        return self
+
+
+##################################################
+# CRF Tagger
+##################################################
+
+
+class CrfTagger(nn.Module, Neural[
+    Sent,
+    List[str],
+    Tensor,
+    PackedSequence,
+    List[int],
+    AccStats,
+]):
+    def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
+        # Required by nn.Module
+        super().__init__()
+        # Encoding (mapping between tags and integers)
+        self.tag_enc = Encoding(tagset)
+        # Neural sub-modules
+        self.net = nn.Sequential(
+            Embed(word_emb),
+            Context(config),
+            PackedSeqDropout(config['lstm']['dropout']),
+            Score(config, len(tagset)),
+        )
+        # CRF Layer
+        self.crf = CRF.new(len(tagset))
+
+    def forward(self, batch: List[Sent]) -> PackedSequence:
+        return self.net(batch)
+
+    def split(self, batch: PackedSequence) -> List[Tensor]:
+        return unpack(batch)
+
+    def decode(self, scores: Tensor) -> List[str]:
+        return list(map(
+            self.tag_enc.decode,
+            self.crf.viterbi(scores)
+        ))
+
+    def encode(self, gold: List[str]) -> List[int]:
+        target_pos_ixs = []
+        for tag in gold:
+            target_pos_ixs.append(self.tag_enc.encode(tag))
+        return target_pos_ixs
+
+    def loss(self, gold: List[List[int]], pred: PackedSequence) -> Tensor:
+        log_total = self.crf.log_likelihood_packed(pred, gold)
+        return -log_total
 
     def score(self, gold: List[str], pred: List[str]) -> AccStats:
         k, n = 0, 0

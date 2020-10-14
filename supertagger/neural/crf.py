@@ -5,13 +5,12 @@ from collections import Counter
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn
-
-from supertagger.neural.utils import TT
+from torch import Tensor
 
 # import timeit
 
 
-def batch_start(size: TT) -> TT:
+def batch_start(size: Tensor) -> Tensor:
     """Calculate the starting position of the subsequent batches
     in a PackedSequence.
 
@@ -33,7 +32,7 @@ def batch_start(size: TT) -> TT:
 
 
 # TODO: optimize this!
-def add_to_each(batch: TT, T: TT) -> TT:
+def add_to_each(batch: Tensor, T: Tensor) -> Tensor:
     """For each vector `v` in the `batch`, create a new instance
     of `T` and add `v` to each row in `T`.  As a result, we should
     obtain B copies of (modified) `T`, where B is the batch size.
@@ -130,7 +129,7 @@ class CRF(nn.Module):
     #         mk_tensor = torch.zeros
     #     self.T = nn.Parameter(mk_tensor((class_num, class_num)))
 
-    def __init__(self, params: TT):
+    def __init__(self, params: Tensor):
         super(CRF, self).__init__()
         self.T = params
 
@@ -151,7 +150,7 @@ class CRF(nn.Module):
         """Add the CRF with another one"""
         return CRF(self.T + other.T)
 
-    def alpha(self, scores: TT):
+    def alpha(self, scores: Tensor):
         """In the CRF terminology: forward pass"""
         # Sentence length
         sent_len = scores.shape[0]
@@ -216,7 +215,7 @@ class CRF(nn.Module):
             scores.unsorted_indices
         )
 
-    def beta(self, scores: TT):
+    def beta(self, scores: Tensor):
         """In the CRF terminology: backward pass"""
         # Sentence length
         sent_len = scores.shape[0]
@@ -274,7 +273,7 @@ class CRF(nn.Module):
             scores.unsorted_indices
         )
 
-    def viterbi(self, scores: TT) -> List[int]:
+    def viterbi(self, scores: Tensor) -> List[int]:
         """Perform Viterbi decoding.
 
         Determine and return the highest-scoring list of class indices.
@@ -312,7 +311,7 @@ class CRF(nn.Module):
             ixs.reverse()
             return ixs
 
-    # def log_score(self, scores: TT, targets: List[int]) -> TT:
+    # def log_score(self, scores: Tensor, targets: List[int]) -> Tensor:
     #     """Log-score of the given sequence of target class indices.
 
     #     Arguments:
@@ -333,7 +332,7 @@ class CRF(nn.Module):
     #     # Return the total score
     #     return log_total
 
-    # def log_score(self, scores: TT, targets: List[int]) -> TT:
+    # def log_score(self, scores: Tensor, targets: List[int]) -> Tensor:
     #     """Log-score of the given sequence of target class indices.
 
     #     Arguments:
@@ -369,7 +368,7 @@ class CRF(nn.Module):
     #     # # Return the total score
     #     # return log_total
 
-    def log_score(self, scores: TT, targets: List[int]) -> TT:
+    def log_score(self, scores: Tensor, targets: List[int]) -> Tensor:
         """Log-score of the given sequence of target class indices.
 
         Arguments:
@@ -392,7 +391,7 @@ class CRF(nn.Module):
         )
 
     def log_score_batch(
-            self, N: TT, scores: TT, targets: List[List[int]]) -> TT:
+            self, N: Tensor, scores: Tensor, targets: List[List[int]]) -> Tensor:
         """Log-score of the given sequence of target class indices.
 
         Arguments:
@@ -434,7 +433,7 @@ class CRF(nn.Module):
             torch.sum(T_mask * self.T)
         )
 
-    def log_likelihood(self, scores: TT, targets: List[int]) -> TT:
+    def log_likelihood(self, scores: Tensor, targets: List[int]) -> Tensor:
         """Calculate the log-likelihood of the given target classes.
 
         Arguments:
@@ -449,7 +448,7 @@ class CRF(nn.Module):
         return self.log_score(scores, targets) - Z
 
     def log_likelihood_packed(self, scores_packed: rnn.PackedSequence,
-                              targets: Iterable[List[int]]) -> TT:
+                              targets: Iterable[List[int]]) -> Tensor:
         """Calculate the log-likelihood of the given target classes.
 
         Arguments:
@@ -501,7 +500,7 @@ class CRF(nn.Module):
         # assert abs(torch.sum(torch.stack(llls)).item() - batch_score.item()) < 0.1
         # return torch.sum(torch.stack(llls))
 
-    def marginals(self, scores: TT) -> TT:
+    def marginals(self, scores: Tensor) -> Tensor:
         """Replace the input scores with marginal probabilities.
 
         NOTE: The output marginal probabilities are in log-domain!
@@ -513,7 +512,7 @@ class CRF(nn.Module):
         return (alpha + beta - scores) - Z
 
     def marginals_packed_gen(self, scores_packed: rnn.PackedSequence) \
-            -> Iterator[TT]:
+            -> Iterator[Tensor]:
         """Variant of `marginals` for packed sequences.
 
         Outputs a generator with one tensor per each sentence in the batch.
@@ -538,14 +537,14 @@ class CRF(nn.Module):
             Z = torch.logsumexp(alpha[-1], dim=0)
             yield (alpha + beta - score) - Z
 
-    def marginals_packed(self, scores: rnn.PackedSequence) -> List[TT]:
+    def marginals_packed(self, scores: rnn.PackedSequence) -> List[Tensor]:
         """Variant of `marginals` for packed sequences.
 
         Outputs a list with one tensor per each sentence in the batch.
         """
         return list(self.marginals_packed_gen(scores))
 
-    def forward(self, scores: TT) -> TT:
+    def forward(self, scores: Tensor) -> Tensor:
         return self.marginals(scores)
 
 
@@ -593,7 +592,7 @@ class CRF0(nn.Module):
         """Return the number of classes."""
         return self.T.shape[0]
 
-    def alpha(self, scores: TT):
+    def alpha(self, scores: Tensor):
         """In the CRF terminology: forward pass"""
         # Sentence length
         sent_len = scores.shape[0]
@@ -613,7 +612,7 @@ class CRF0(nn.Module):
         # Return the result
         return alpha
 
-    def beta(self, scores: TT):
+    def beta(self, scores: Tensor):
         """In the CRF terminology: backward pass"""
         # Sentence length
         sent_len = scores.shape[0]
@@ -633,7 +632,7 @@ class CRF0(nn.Module):
         # Return the result
         return beta
 
-    # def forward(self, scores: TT):
+    # def forward(self, scores: Tensor):
     #     """Apply the CRF to the given matrix of scores."""
     #     # The scores vector is a matrix, where the first
     #     # dimension corresponds to the number of words, and
@@ -648,7 +647,7 @@ class CRF0(nn.Module):
 ############################################################
 
 
-def score_mask_slow(scores: TT, targets: List[int]) -> TT:
+def score_mask_slow(scores: Tensor, targets: List[int]) -> Tensor:
     # Sentence length
     sent_len = scores.shape[0]
     # Score mask
@@ -658,7 +657,7 @@ def score_mask_slow(scores: TT, targets: List[int]) -> TT:
     return score_mask
 
 
-def score_mask_fast(scores: TT, targets: List[int]) -> TT:
+def score_mask_fast(scores: Tensor, targets: List[int]) -> Tensor:
     """
     >>> import random
     >>> N = 5
@@ -676,7 +675,7 @@ def score_mask_fast(scores: TT, targets: List[int]) -> TT:
     return score_mask
 
 
-def score_mask_batch(N: TT, scores: TT, targets: Iterable[List[int]]) -> TT:
+def score_mask_batch(N: Tensor, scores: Tensor, targets: Iterable[List[int]]) -> Tensor:
     """
     >>> import random
     >>> B = 16
@@ -705,7 +704,7 @@ def score_mask_batch(N: TT, scores: TT, targets: Iterable[List[int]]) -> TT:
     return score_mask
 
 
-def transition_mask_slow(N: int, T: TT, targets: List[int]) -> TT:
+def transition_mask_slow(N: int, T: Tensor, targets: List[int]) -> Tensor:
     # Transition mask
     T_mask = torch.zeros_like(T)
     for i in range(1, N):
@@ -713,7 +712,7 @@ def transition_mask_slow(N: int, T: TT, targets: List[int]) -> TT:
     return T_mask
 
 
-def transition_mask_fast(N: int, T: TT, targets: List[int]) -> TT:
+def transition_mask_fast(N: int, T: Tensor, targets: List[int]) -> Tensor:
     """
     Well, not really that fast, but should be better then the slow version.
 
@@ -750,7 +749,7 @@ def transition_mask_fast(N: int, T: TT, targets: List[int]) -> TT:
     return T_mask
 
 
-def transition_mask_batch(N: TT, T: TT, targets: Iterable[List[int]]) -> TT:
+def transition_mask_batch(N: Tensor, T: Tensor, targets: Iterable[List[int]]) -> Tensor:
     """
     >>> import random
     >>> B = 16
