@@ -10,7 +10,7 @@ from supertagger.neural.embedding.fasttext import FastText
 
 # from supertagger.mwe_identifier.seq import IobTagger
 # from supertagger.tagger.model import Tagger, batch_loss, neg_lll, accuracy
-from supertagger.tagger.pro_model import Tagger
+from supertagger.tagger.pro_model import DepParser, Tagger
 
 # from supertagger.tasks.utils import load_data, load_config
 
@@ -21,18 +21,37 @@ def init_tagger(config: dict, tagset: Set[str], embed_path: str):
     time_begin = datetime.now()
 
     # data configuration
-    print('''[-- tagger configuration: --]
+    print('''[-- configuration: --]
     -- config: %s
     ''' % config)
 
     # Create an instance of the tagger and load embedding
     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
-    tagger = Tagger(config, tagset, word_emb)
+    model = Tagger(config, tagset, word_emb)
 
-    print('''[-- finished initializing tagger | duration: %s --]
+    print('''[-- finished initializing model | duration: %s --]
     ''' % (datetime.now() - time_begin))
 
-    return tagger
+    return model
+
+
+def init_parser(config: dict, embed_path: str):
+    time_begin = datetime.now()
+
+    # data configuration
+    print('''[-- configuration: --]
+    -- config: %s
+    ''' % config)
+
+    # Create an instance of the tagger and load embedding
+    word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
+    # model = Tagger(config, tagset, word_emb)
+    model = DepParser(config, word_emb)
+
+    print('''[-- finished initializing model | duration: %s --]
+    ''' % (datetime.now() - time_begin))
+
+    return model
 
 
 def load_config(path: str) -> dict:
@@ -41,7 +60,7 @@ def load_config(path: str) -> dict:
         return json.load(config_file)
 
 
-def preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
+def pos_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
     """Prepare the sentence for further processing"""
     inp = [tok.word_form for tok in sent]
     out = []
@@ -54,15 +73,24 @@ def preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
     return inp, out
 
 
-def do_train_tagger(args):
+def dep_preprocess(sent: data.Sent) -> Tuple[List[str], List[int]]:
+    """Prepare the sentence for further processing"""
+    inp = [tok.word_form for tok in sent]
+    out = []
+    for tok in sent:
+        out.append(tok.best_head())
+    return inp, out
+
+
+def do_train(args):
     time_begin = datetime.now()
 
     print('''[-- begin training: %s --]
     ''' % time_begin)
 
-    # load train, tagger config
+    # load train, model config
     train_cfg = load_config(args.train_config)
-    tagger_cfg = load_config(args.tagger_config)
+    model_cfg = load_config(args.model_config)
 
     # train configuration
     print('''[-- training configuration: --]
@@ -90,22 +118,23 @@ def do_train_tagger(args):
         dev_set = data.read_supertags(args.dev_path)
 
     # data preprocessing
-    train_set = list(map(preprocess, train_set))
+    train_set = list(map(dep_preprocess, train_set))
     if dev_set:
-        dev_set = list(map(preprocess, dev_set))
+        dev_set = list(map(dep_preprocess, dev_set))
 
-    # initialize the tagger
-    tagset = set(tag for (inp, out) in train_set for tag in out)
-    print("# Tagset:", tagset)
-    tagger = init_tagger(tagger_cfg, tagset, args.fast_path)
+    # # initialize the model
+    # tagset = set(tag for (inp, out) in train_set for tag in out)
+    # print("# Tagset:", tagset)
+    # model = init_tagger(model_cfg, tagset, args.fast_path)
+    model = init_parser(model_cfg, args.fast_path)
 
-    # train the tagger on given configuration
+    # train the model on given configuration
     for (n, lr) in zip(
         train_cfg['epochs_num'],
         train_cfg['learning_rate'],
     ):
         train(
-            tagger,
+            model,
             train_set,
             dev_set,
             # neg_lll if args.lll else batch_loss,
@@ -121,9 +150,9 @@ def do_train_tagger(args):
 
     print("")  # print newline for logging
 
-    # save the trained model
-    if (args.save_path is not None):
-        tagger.save(args.save_path)
+    # # save the trained model
+    # if (args.save_path is not None):
+    #     model.save(args.save_path)
 
     print('''[-- finished training | duration: %s --]
     ''' % (datetime.now() - time_begin))

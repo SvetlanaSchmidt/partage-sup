@@ -1,7 +1,7 @@
 import argparse
 
 import supertagger.data as data
-from supertagger.tasks.train_tagger import do_train_tagger
+from supertagger.tasks.train import do_train
 
 parser = argparse.ArgumentParser(description='supertagger')
 subparsers = parser.add_subparsers(dest='command', help='available commands')
@@ -28,9 +28,9 @@ parser_test.add_argument(
 #################################################
 
 
-tagger_train = subparsers.add_parser('train-tagger', help='train the tagger')
+train = subparsers.add_parser('train', help='train the model')
 
-tagger_train.add_argument(
+train.add_argument(
     "-t",
     dest="train_path",
     required=True,
@@ -38,7 +38,7 @@ tagger_train.add_argument(
     metavar="FILE",
 )
 
-tagger_train.add_argument(
+train.add_argument(
     "-d",
     dest="dev_path",
     required=False,
@@ -46,7 +46,7 @@ tagger_train.add_argument(
     metavar="FILE",
 )
 
-tagger_train.add_argument(
+train.add_argument(
     "-f",
     dest="fast_path",
     required=True,
@@ -54,15 +54,15 @@ tagger_train.add_argument(
     metavar="FILE",
 )
 
-tagger_train.add_argument(
-    "--tagger-config",
-    dest="tagger_config",
+train.add_argument(
+    "--model-config",
+    dest="model_config",
     required=True,
-    help="tagger config .json file",
+    help="model config .json file",
     metavar="FILE",
 )
 
-tagger_train.add_argument(
+train.add_argument(
     "--train-config",
     dest="train_config",
     required=True,
@@ -70,19 +70,13 @@ tagger_train.add_argument(
     metavar="FILE",
 )
 
-tagger_train.add_argument(
-    "--save-model",
-    dest="save_path",
-    required=False,
-    help="output path to save the model",
-    metavar="FILE",
-)
-
-tagger_train.add_argument(
-    "--lll",
-    action="store_true",
-    dest="lll",
-)
+# train.add_argument(
+#     "--save-model",
+#     dest="save_path",
+#     required=False,
+#     help="output path to save the model",
+#     metavar="FILE",
+# )
 
 
 #################################################
@@ -109,5 +103,5 @@ if __name__ == '__main__':
             #     tree, sent = tok.best_stag().as_tree()
             #     print(data.tree_pos(tree, sent))
 
-    if args.command == 'train-tagger':
-        do_train_tagger(args)
+    if args.command == 'train':
+        do_train(args)

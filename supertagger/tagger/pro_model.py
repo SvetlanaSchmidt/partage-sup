@@ -12,8 +12,10 @@ from supertagger.neural.embedding.pretrained import PreTrained
 
 from supertagger.neural.encoding import Encoding
 from supertagger.neural.utils import get_device, eval_on, unpack
-from supertagger.neural.crf import CRF
+# from supertagger.neural.crf import CRF
 from supertagger.neural.bilstm import BiLSTM
+from supertagger.neural.mlp import MLP
+from supertagger.neural.biaffine import BiAffine, unpad_biaffine
 
 from supertagger.neural.proto import ScoreStats, Neural
 
@@ -144,6 +146,135 @@ class Score(nn.Module):
         return scores
 
 
+class PackedSeqToBatch(nn.Module):
+    """Transforming a packed sequence to a batched representation"""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
+        # Convert packed representation to a padded representation
+        return rnn.pad_packed_sequence(seq, batch_first=True)
+
+
+##################################################
+# DepParser
+##################################################
+
+
+class DepParser(nn.Module, Neural[
+    Sent,           # Input: list of words
+    List[int],      # Output: list of heads
+    Tensor,         # Predicted tensor (can be `decode`d)
+    List[Tensor],   # Batch of output tensors
+    Tensor,         # Gold tensor (can be )
+    AccStats,       # Accuracy stats
+]):
+
+    def __init__(self, config, word_emb: PreTrained):
+        super().__init__()
+        self.emb = Embed(word_emb)
+        self.ctx = Context(config)
+        self.ctx_dropout = PackedSeqDropout(config['lstm']['dropout'])
+        self.head_repr = MLP(
+            in_size=config['lstm']['out_size'] * 2,
+            hid_size=config['mlp_head_dep']['hidden_size'],
+            out_size=config['mlp_head_dep']['out_size'],
+            dropout=config['mlp_head_dep']['dropout'],
+        )
+        self.dep_repr = MLP(
+            in_size=config['lstm']['out_size'] * 2,
+            hid_size=config['mlp_head_dep']['hidden_size'],
+            out_size=config['mlp_head_dep']['out_size'],
+            dropout=config['mlp_head_dep']['dropout'],
+        )
+        # A biaffine arc scoring model
+        self.heads = BiAffine(repr_size=config['mlp_head_dep']['out_size'])
+
+    def forward(self, batch: List[Sent]) -> List[Tensor]:
+        # Calculate the embeddings and contextualize them
+        embs = self.emb(batch)
+        ctxs = self.ctx_dropout(self.ctx(embs))
+
+        # Convert packed representation to a padded representation
+        padded, length = rnn.pad_packed_sequence(ctxs, batch_first=True)
+
+        # # Calculate the head and dependent representations
+        head_repr = self.head_repr(padded)
+        dep_repr = self.dep_repr(padded)
+
+        # Calculate the head scores and unpad
+        padded_head_scores = self.heads.forward_padded_batch(
+            head_repr,
+            dep_repr,
+            length
+        )
+
+        # Return the head scores
+        return unpad_biaffine(padded_head_scores, length)
+
+    def split(self, batch: List[Tensor]) -> List[Tensor]:
+        return batch
+
+    def decode(self, scores: Tensor) -> List[int]:
+        heads = []
+        for score in scores:
+            # Cast to int to avoid mypy error
+            ix = int(torch.argmax(score).item())
+            heads.append(ix)
+        return heads
+
+    def encode(self, gold: List[int]) -> Tensor:
+        return torch.tensor(gold)  # .to(device)
+
+    def loss(self, golds: List[Tensor], preds: List[Tensor]) -> Tensor:
+        # Multiclass cross-etropy loss
+        criterion = nn.CrossEntropyLoss(reduction='sum')
+        # Store the dependency parsing loss in a variable
+        arc_loss = torch.tensor(0.0, dtype=torch.float)
+        # Calculate the loss for each sentence separately
+        # (this could be further optimized using padding)
+        for pred, gold in zip(preds, golds):
+            # Check dimensions
+            assert gold.dim() == 1
+            assert pred.dim() == 2
+            assert pred.shape[0] == gold.shape[0]
+            # Calculate the sent loss and update the batch dependency loss
+            arc_loss += criterion(pred, gold)
+        return arc_loss
+
+    # def loss(self, golds: List[Tensor], preds: List[Tensor]) -> Tensor:
+    #     assert len(golds) == len(preds)
+    #     # print("gold shape:", gold[0].shape)
+    #     # print("pred shape:", pred[0].shape)
+
+    #     # Maximum sentence length
+    #     B = len(golds)
+    #     N = max(len(x) for x in golds)
+
+    #     # Construct a batched prediction tensor with defualt, low score
+    #     padded = torch.full((B, N+1), -10000., dtype=torch.float)
+    #     for k, pred in zip(range(B), preds):
+    #         n = len(pred)
+    #         padded[k, :n] = pred
+
+    #     return nn.CrossEntropyLoss()(
+    #         padded,
+    #         torch.cat(golds),
+    #     )
+
+    def score(self, gold: List[int], pred: List[int]) -> AccStats:
+        k, n = 0, 0
+        for (pred_tag, gold_tag) in zip(pred, gold):
+            if pred_tag == gold_tag:
+                k += 1
+            n += 1
+        return AccStats(tp_num=k, all_num=n)
+
+    def module(self):
+        return self
+
+
 ##################################################
 # Tagger
 ##################################################
@@ -215,58 +346,58 @@ class Tagger(nn.Module, Neural[
 ##################################################
 
 
-class CrfTagger(nn.Module, Neural[
-    Sent,
-    List[str],
-    Tensor,
-    PackedSequence,
-    List[int],
-    AccStats,
-]):
-    def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
-        # Required by nn.Module
-        super().__init__()
-        # Encoding (mapping between tags and integers)
-        self.tag_enc = Encoding(tagset)
-        # Neural sub-modules
-        self.net = nn.Sequential(
-            Embed(word_emb),
-            Context(config),
-            PackedSeqDropout(config['lstm']['dropout']),
-            Score(config, len(tagset)),
-        )
-        # CRF Layer
-        self.crf = CRF.new(len(tagset))
+# class CrfTagger(nn.Module, Neural[
+#     Sent,
+#     List[str],
+#     Tensor,
+#     PackedSequence,
+#     List[int],
+#     AccStats,
+# ]):
+#     def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
+#         # Required by nn.Module
+#         super().__init__()
+#         # Encoding (mapping between tags and integers)
+#         self.tag_enc = Encoding(tagset)
+#         # Neural sub-modules
+#         self.net = nn.Sequential(
+#             Embed(word_emb),
+#             Context(config),
+#             PackedSeqDropout(config['lstm']['dropout']),
+#             Score(config, len(tagset)),
+#         )
+#         # CRF Layer
+#         self.crf = CRF.new(len(tagset))
 
-    def forward(self, batch: List[Sent]) -> PackedSequence:
-        return self.net(batch)
+#     def forward(self, batch: List[Sent]) -> PackedSequence:
+#         return self.net(batch)
 
-    def split(self, batch: PackedSequence) -> List[Tensor]:
-        return unpack(batch)
+#     def split(self, batch: PackedSequence) -> List[Tensor]:
+#         return unpack(batch)
 
-    def decode(self, scores: Tensor) -> List[str]:
-        return list(map(
-            self.tag_enc.decode,
-            self.crf.viterbi(scores)
-        ))
+#     def decode(self, scores: Tensor) -> List[str]:
+#         return list(map(
+#             self.tag_enc.decode,
+#             self.crf.viterbi(scores)
+#         ))
 
-    def encode(self, gold: List[str]) -> List[int]:
-        target_pos_ixs = []
-        for tag in gold:
-            target_pos_ixs.append(self.tag_enc.encode(tag))
-        return target_pos_ixs
+#     def encode(self, gold: List[str]) -> List[int]:
+#         target_pos_ixs = []
+#         for tag in gold:
+#             target_pos_ixs.append(self.tag_enc.encode(tag))
+#         return target_pos_ixs
 
-    def loss(self, gold: List[List[int]], pred: PackedSequence) -> Tensor:
-        log_total = self.crf.log_likelihood_packed(pred, gold)
-        return -log_total
+#     def loss(self, gold: List[List[int]], pred: PackedSequence) -> Tensor:
+#         log_total = self.crf.log_likelihood_packed(pred, gold)
+#         return -log_total
 
-    def score(self, gold: List[str], pred: List[str]) -> AccStats:
-        k, n = 0, 0
-        for (pred_tag, gold_tag) in zip(pred, gold):
-            if pred_tag == gold_tag:
-                k += 1
-            n += 1
-        return AccStats(tp_num=k, all_num=n)
+#     def score(self, gold: List[str], pred: List[str]) -> AccStats:
+#         k, n = 0, 0
+#         for (pred_tag, gold_tag) in zip(pred, gold):
+#             if pred_tag == gold_tag:
+#                 k += 1
+#             n += 1
+#         return AccStats(tp_num=k, all_num=n)
 
-    def module(self):
-        return self
+#     def module(self):
+#         return self
