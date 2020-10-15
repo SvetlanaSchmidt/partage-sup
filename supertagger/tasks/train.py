@@ -3,6 +3,8 @@ from typing import Set, Tuple, List
 from datetime import datetime
 import json
 
+import torch.nn as nn
+
 # from supertagger.neural.training import train
 from supertagger.neural.pro_training import train
 
@@ -10,7 +12,7 @@ from supertagger.neural.embedding.fasttext import FastText
 
 # from supertagger.mwe_identifier.seq import IobTagger
 # from supertagger.tagger.model import Tagger, batch_loss, neg_lll, accuracy
-from supertagger.tagger.pro_model import Joint, Out
+from supertagger.tagger.pro_model import RoundRobin, Out
 
 # from supertagger.tasks.utils import load_data, load_config
 
@@ -26,8 +28,10 @@ import supertagger.data as data
 #     ''' % config)
 
 #     # Create an instance of the tagger and load embedding
-#     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
-#     model = Tagger(config, tagset, word_emb)
+
+#     fastText = FastText(embed_path, dropout=config['embedding']['dropout'])
+#     embed = nn.Sequential(Embed(fastText), Context(config))
+#     model = Tagger(config, tagset, embed)
 
 #     print('''[-- finished initializing model | duration: %s --]
 #     ''' % (datetime.now() - time_begin))
@@ -54,7 +58,25 @@ import supertagger.data as data
 #     return model
 
 
-def init_joint(config: dict, posset: Set[str], stagset: Set[str], embed_path: str):
+# def init_joint(config: dict, posset: Set[str], stagset: Set[str], embed_path: str):
+#     time_begin = datetime.now()
+
+#     # data configuration
+#     print('''[-- configuration: --]
+#     -- config: %s
+#     ''' % config)
+
+#     # Create an instance of the tagger and load embedding
+#     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
+#     model = Joint(config, posset, stagset, word_emb)
+
+#     print('''[-- finished initializing model | duration: %s --]
+#     ''' % (datetime.now() - time_begin))
+
+#     return model
+
+
+def init_rr(config: dict, posset: Set[str], stagset: Set[str], embed_path: str):
     time_begin = datetime.now()
 
     # data configuration
@@ -64,7 +86,7 @@ def init_joint(config: dict, posset: Set[str], stagset: Set[str], embed_path: st
 
     # Create an instance of the tagger and load embedding
     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
-    model = Joint(config, posset, stagset, word_emb)
+    model = RoundRobin(config, posset, stagset, word_emb)
 
     print('''[-- finished initializing model | duration: %s --]
     ''' % (datetime.now() - time_begin))
@@ -163,6 +185,7 @@ def do_train(args):
         dev_set = data.read_supertags(args.dev_path)
 
     # data preprocessing
+    # preprocess = stag_preprocess
     train_set = list(map(preprocess, train_set))
     if dev_set:
         dev_set = list(map(preprocess, dev_set))
@@ -172,8 +195,8 @@ def do_train(args):
     print("# No. of POS tags:", len(posset))
     stagset = set(x.stag for (inp, out) in train_set for x in out)
     print("# No. of supertags:", len(stagset))
-    model = init_joint(model_cfg, posset, stagset, args.fast_path)
-    # model = init_tagger(model_cfg, tagset, args.fast_path)
+    model = init_rr(model_cfg, posset, stagset, args.fast_path)
+    # model = init_tagger(model_cfg, stagset, args.fast_path)
     # model = init_parser(model_cfg, args.fast_path)
 
     # train the model on given configuration

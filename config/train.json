@@ -12,6 +12,6 @@
     "weight_decay": 0.0,
     "clip": 150.0,
     "report_rate": 10,
-    "batch_size": 128,
+    "batch_size": 32,
     "shuffle": true
 }

@@ -35,28 +35,34 @@ Inp = TypeVar('Inp')
 Out = TypeVar('Out')
 Y = TypeVar('Y')
 B = TypeVar('B')
-Z = TypeVar('Z')
+# Z = TypeVar('Z')
 S = TypeVar('S', bound=ScoreStats, covariant=True)
-class Neural(Protocol[Inp, Out, Y, B, Z, S]):
+class Neural(Protocol[Inp, Out, Y, B, S]):
 
     @abstractmethod
-    def forward(self, inp: List[Inp]) -> B:
+    def forward_batch(self, inp: List[Inp]) -> B:
+        """Used during training"""
         pass
 
     @abstractmethod
-    def split(self, batch: B) -> List[Y]:
+    def forward(self, inp: Inp) -> Y:
+        """Used during evaluation"""
         pass
+
+    # @abstractmethod
+    # def split(self, batch: B) -> List[Y]:
+    #     pass
 
     @abstractmethod
     def decode(self, y: Y) -> Out:
         pass
 
-    @abstractmethod
-    def encode(self, gold: Out) -> Z:
-        pass
+    # @abstractmethod
+    # def encode(self, gold: Out) -> Z:
+    #     pass
 
     @abstractmethod
-    def loss(self, gold: List[Z], pred: B) -> Tensor:
+    def loss(self, gold: List[Out], pred: B) -> Tensor:
         pass
 
     @abstractmethod
