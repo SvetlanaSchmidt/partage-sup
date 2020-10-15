@@ -10,14 +10,51 @@ from supertagger.neural.embedding.fasttext import FastText
 
 # from supertagger.mwe_identifier.seq import IobTagger
 # from supertagger.tagger.model import Tagger, batch_loss, neg_lll, accuracy
-from supertagger.tagger.pro_model import DepParser, Tagger
+from supertagger.tagger.pro_model import Joint, Out
 
 # from supertagger.tasks.utils import load_data, load_config
 
 import supertagger.data as data
 
 
-def init_tagger(config: dict, tagset: Set[str], embed_path: str):
+# def init_tagger(config: dict, tagset: Set[str], embed_path: str):
+#     time_begin = datetime.now()
+
+#     # data configuration
+#     print('''[-- configuration: --]
+#     -- config: %s
+#     ''' % config)
+
+#     # Create an instance of the tagger and load embedding
+#     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
+#     model = Tagger(config, tagset, word_emb)
+
+#     print('''[-- finished initializing model | duration: %s --]
+#     ''' % (datetime.now() - time_begin))
+
+#     return model
+
+
+# def init_parser(config: dict, embed_path: str):
+#     time_begin = datetime.now()
+
+#     # data configuration
+#     print('''[-- configuration: --]
+#     -- config: %s
+#     ''' % config)
+
+#     # Create an instance of the tagger and load embedding
+#     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
+#     # model = Tagger(config, tagset, word_emb)
+#     model = DepParser(config, word_emb)
+
+#     print('''[-- finished initializing model | duration: %s --]
+#     ''' % (datetime.now() - time_begin))
+
+#     return model
+
+
+def init_joint(config: dict, posset: Set[str], stagset: Set[str], embed_path: str):
     time_begin = datetime.now()
 
     # data configuration
@@ -27,26 +64,7 @@ def init_tagger(config: dict, tagset: Set[str], embed_path: str):
 
     # Create an instance of the tagger and load embedding
     word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
-    model = Tagger(config, tagset, word_emb)
-
-    print('''[-- finished initializing model | duration: %s --]
-    ''' % (datetime.now() - time_begin))
-
-    return model
-
-
-def init_parser(config: dict, embed_path: str):
-    time_begin = datetime.now()
-
-    # data configuration
-    print('''[-- configuration: --]
-    -- config: %s
-    ''' % config)
-
-    # Create an instance of the tagger and load embedding
-    word_emb = FastText(embed_path, dropout=config['embedding']['dropout'])
-    # model = Tagger(config, tagset, word_emb)
-    model = DepParser(config, word_emb)
+    model = Joint(config, posset, stagset, word_emb)
 
     print('''[-- finished initializing model | duration: %s --]
     ''' % (datetime.now() - time_begin))
@@ -60,35 +78,52 @@ def load_config(path: str) -> dict:
         return json.load(config_file)
 
 
-def pos_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
+# def pos_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
+#     """Prepare the sentence for training a POS tagger"""
+#     inp = [tok.word_form for tok in sent]
+#     out = []
+#     for tok in sent:
+#         # First convert the supertag to a tree, than retrieve
+#         # the POS tag
+#         pos = data.tree_pos(*(tok.best_stag().as_tree()))
+#         assert pos is not None
+#         out.append(pos)
+#     return inp, out
+
+
+# def stag_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
+#     """Prepare the sentence for training a supertagger"""
+#     inp = [tok.word_form for tok in sent]
+#     out = []
+#     for tok in sent:
+#         stag = tok.best_stag().stag_str
+#         out.append(stag)
+#     return inp, out
+
+
+# def dep_preprocess(sent: data.Sent) -> Tuple[List[str], List[int]]:
+#     """Prepare the sentence for training a dependency parser"""
+#     inp = [tok.word_form for tok in sent]
+#     out = []
+#     for tok in sent:
+#         out.append(tok.best_head())
+#     return inp, out
+
+
+def preprocess(sent: data.Sent) -> Tuple[List[str], List[Out]]:
     """Prepare the sentence for training a POS tagger"""
     inp = [tok.word_form for tok in sent]
     out = []
     for tok in sent:
         # First convert the supertag to a tree, than retrieve
         # the POS tag
-        pos = data.tree_pos(*(tok.best_stag().as_tree()))
+        stag = tok.best_stag()
+        pos = data.tree_pos(*(stag.as_tree()))
+        head = tok.best_head()
         assert pos is not None
-        out.append(pos)
-    return inp, out
-
-
-def stag_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
-    """Prepare the sentence for training a supertagger"""
-    inp = [tok.word_form for tok in sent]
-    out = []
-    for tok in sent:
-        stag = tok.best_stag().stag_str
-        out.append(stag)
-    return inp, out
-
-
-def dep_preprocess(sent: data.Sent) -> Tuple[List[str], List[int]]:
-    """Prepare the sentence for training a dependency parser"""
-    inp = [tok.word_form for tok in sent]
-    out = []
-    for tok in sent:
-        out.append(tok.best_head())
+        out.append(Out(
+            pos=pos, head=head, stag=stag.stag_str
+        ))
     return inp, out
 
 
@@ -128,14 +163,17 @@ def do_train(args):
         dev_set = data.read_supertags(args.dev_path)
 
     # data preprocessing
-    train_set = list(map(stag_preprocess, train_set))
+    train_set = list(map(preprocess, train_set))
     if dev_set:
-        dev_set = list(map(stag_preprocess, dev_set))
+        dev_set = list(map(preprocess, dev_set))
 
     # # initialize the model
-    tagset = set(tag for (inp, out) in train_set for tag in out)
-    print("# No. of supertags:", len(tagset))
-    model = init_tagger(model_cfg, tagset, args.fast_path)
+    posset = set(x.pos for (inp, out) in train_set for x in out)
+    print("# No. of POS tags:", len(posset))
+    stagset = set(x.stag for (inp, out) in train_set for x in out)
+    print("# No. of supertags:", len(stagset))
+    model = init_joint(model_cfg, posset, stagset, args.fast_path)
+    # model = init_tagger(model_cfg, tagset, args.fast_path)
     # model = init_parser(model_cfg, args.fast_path)
 
     # train the model on given configuration
@@ -147,8 +185,6 @@ def do_train(args):
             model,
             train_set,
             dev_set,
-            # neg_lll if args.lll else batch_loss,
-            # [lambda x, y: accuracy(x, y)],
             epoch_num=n,
             learning_rate=lr,
             weight_decay=train_cfg['weight_decay'],

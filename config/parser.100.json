@@ -1,0 +1,17 @@
+{
+  "embedding": {
+    "dropout": 0.1
+  },
+  "lstm": {
+    "in_size": 100,
+    "out_size": 100,
+    "depth": 3,
+    "dropout": 0.1
+  },
+  "mlp_head_dep": {
+    "hidden_size": 100,
+    "out_size": 100,
+    "dropout": 0.1
+  }
+}
+

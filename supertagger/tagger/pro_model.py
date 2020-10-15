@@ -1,4 +1,4 @@
-from typing import Set, Iterable, List, Sequence, Tuple
+from typing import Set, Iterable, List, Sequence, Tuple, Optional, Any
 from dataclasses import dataclass
 
 import torch
@@ -155,6 +155,244 @@ class PackedSeqToBatch(nn.Module):
     def forward(self, seq: PackedSequence) -> Tuple[Tensor, Tensor]:
         # Convert packed representation to a padded representation
         return rnn.pad_packed_sequence(seq, batch_first=True)
+
+
+##################################################
+# Joint
+##################################################
+
+
+@dataclass(frozen=True)
+class Out:
+    """Per-token output (which we want to predict)"""
+    pos: str    # POS tag
+    head: int   # Dependency head
+    stag: str   # Supertag
+
+
+@dataclass(frozen=True)
+class Pred:
+    """Predicted tensors (tensor representation of `Out`)"""
+    posP: Tensor
+    headP: Tensor
+    stagP: Tensor
+
+
+@dataclass(frozen=True)
+class Gold:
+    posG: Tensor
+    headG: Tensor
+    stagG: Tensor
+
+
+# @dataclass(frozen=True)
+# class PredBatch:
+#     """Batch of predicted tensors"""
+#     posB: List[Tensor]
+#     headB: List[Tensor]
+#     stagB: List[Tensor]
+
+
+class Joint(nn.Module, Neural[
+    Sent,           # Input: list of words
+    List[Out],      # Output: list of heads
+    Pred,           # Predicted tensor (can be `decode`d)
+    List[Pred],     # Batch of output tensors
+    Gold,           # Gold tensor
+    AccStats,       # Accuracy stats
+]):
+
+    def __init__(
+        self,
+        config,
+        tagset: Set[str],
+        stagset: Set[str],
+        word_emb: PreTrained,
+    ):
+        super().__init__()
+
+        # # Training state
+        # self.do_tag = True
+        # self.do_parse = True
+        # self.do_stag = True
+
+        # Tag encoding (mapping between tags and integers)
+        self.tag_enc = Encoding(tagset)
+
+        # STag encoding
+        self.stag_enc = Encoding(stagset)
+
+        # Common part
+        self.emb = Embed(word_emb)
+        self.ctx = Context(config)
+        self.ctx_dropout = PackedSeqDropout(config['lstm']['dropout'])
+
+        # Dependency parser
+        self.head_repr = MLP(
+            in_size=config['lstm']['out_size'] * 2,
+            hid_size=config['mlp_head_dep']['hidden_size'],
+            out_size=config['mlp_head_dep']['out_size'],
+            dropout=config['mlp_head_dep']['dropout'],
+        )
+        self.dep_repr = MLP(
+            in_size=config['lstm']['out_size'] * 2,
+            hid_size=config['mlp_head_dep']['hidden_size'],
+            out_size=config['mlp_head_dep']['out_size'],
+            dropout=config['mlp_head_dep']['dropout'],
+        )
+        # A biaffine arc scoring model
+        self.heads = BiAffine(repr_size=config['mlp_head_dep']['out_size'])
+
+        # Tagger
+        self.tag = Score(config['lstm']['out_size']*2, len(tagset))
+
+        # Supertagger
+        self.stag = Score(config['lstm']['out_size']*2, len(stagset))
+
+    def tag_scores(self, ctxs: PackedSequence) -> List[Tensor]:
+        return unpack(self.tag(ctxs))
+
+    def stag_scores(self, ctxs: PackedSequence) -> List[Tensor]:
+        return unpack(self.stag(ctxs))
+
+    def head_scores(self, ctxs: PackedSequence) -> List[Tensor]:
+        # Convert packed representation to a padded representation
+        padded, length = rnn.pad_packed_sequence(ctxs, batch_first=True)
+
+        # Calculate the head and dependent representations
+        head_repr = self.head_repr(padded)
+        dep_repr = self.dep_repr(padded)
+
+        # Calculate the head scores and unpad
+        padded_head_scores = self.heads.forward_padded_batch(
+            head_repr,
+            dep_repr,
+            length
+        )
+
+        # Unpad and return the head scores
+        return unpad_biaffine(padded_head_scores, length)
+
+    def forward(self, batch: List[Sent]) -> List[Pred]:
+        # Calculate the embeddings and contextualize them
+        embs = self.emb(batch)
+        ctxs = self.ctx_dropout(self.ctx(embs))
+
+        posB = self.tag_scores(ctxs)
+        headB = self.head_scores(ctxs)
+        stagB = self.stag_scores(ctxs)
+        assert len(posB) == len(stagB) == len(headB)
+
+        preds = []
+        for (pos, head, stag) in zip(posB, headB, stagB):
+            preds.append(Pred(posP=pos, stagP=stag, headP=head))
+        return preds
+
+    def split(self, batch: List[Pred]) -> List[Pred]:
+        return batch
+
+    # def split(self, batch: PredBatch) -> List[Pred]:
+    #     preds = []
+    #     assert len(batch.posB) == len(batch.stagB) == len(batch.headB)
+    #     for k in range(len(batch.posB)):
+    #         posP = batch.posB[k]
+    #         stagP = batch.stagB[k]
+    #         headP = batch.headB[k]
+    #         preds.append(Pred(
+    #             posP=posP, stagP=stagP, headP=headP,
+    #         ))
+    #     return preds
+
+    def decode_heads(self, scores: Tensor) -> List[int]:
+        heads = []
+        for score in scores:
+            # Cast to int to avoid mypy error
+            ix = int(torch.argmax(score).item())
+            heads.append(ix)
+        return heads
+
+    def decode_tags(self, enc: Encoding, scores: Tensor) -> List[str]:
+        tags = []
+        for score in scores:
+            # Cast to int to avoid mypy error
+            ix = int(torch.argmax(score).item())
+            tags.append(enc.decode(ix))
+        return tags
+
+    def decode(self, pred: Pred) -> List[Out]:
+        heads = self.decode_heads(pred.headP)
+        tags = self.decode_tags(self.tag_enc, pred.posP)
+        stags = self.decode_tags(self.stag_enc, pred.stagP)
+        assert len(heads) == len(tags) == len(stags)
+
+        outs = []
+        for k in range(len(heads)):
+            outs.append(Out(pos=tags[k], head=heads[k], stag=stags[k]))
+        return outs
+
+    def encode(self, gold: List[Out]) -> Gold:
+        tags = [self.tag_enc.encode(x.pos) for x in gold]
+        stags = [self.stag_enc.encode(x.stag) for x in gold]
+        heads = [x.head for x in gold]
+        return Gold(
+            posG=torch.tensor(tags),
+            stagG=torch.tensor(stags),
+            headG=torch.tensor(heads),
+        )
+
+    def loss(self, golds: List[Gold], preds: List[Pred]) -> Tensor:
+        # Split golds
+        gold_tags = [x.posG for x in golds]
+        gold_stags = [x.stagG for x in golds]
+        gold_heads = [x.headG for x in golds]
+        # Split predictions
+        pred_tags = [x.posP for x in preds]
+        pred_stags = [x.stagP for x in preds]
+        pred_heads = [x.headP for x in preds]
+        # Combine and return losses
+        pl = tag_loss(gold_tags, pred_tags)
+        sl = tag_loss(gold_stags, pred_stags)
+        hl = head_loss(gold_heads, pred_heads)
+        # print(f"# BL: {pl}, {sl}, {hl}")
+        return pl + sl + hl
+
+    def score(self, gold: List[Out], pred: List[Out]) -> AccStats:
+        k, n = 0, 0
+        for (pred_tag, gold_tag) in zip(pred, gold):
+            if pred_tag == gold_tag:
+                k += 1
+            n += 1
+        return AccStats(tp_num=k, all_num=n)
+
+    def module(self):
+        return self
+
+
+def head_loss(golds: List[Tensor], preds: List[Tensor]) -> Tensor:
+    # Both input list should have the same size
+    assert len(golds) == len(preds)
+    # Multiclass cross-etropy loss
+    criterion = nn.CrossEntropyLoss()
+    # Store the dependency parsing loss in a variable
+    arc_loss = torch.tensor(0.0, dtype=torch.float)
+    # Calculate the loss for each sentence separately
+    # (this could be further optimized using padding)
+    for pred, gold in zip(preds, golds):
+        # Check dimensions
+        assert gold.dim() == 1
+        assert pred.dim() == 2
+        assert pred.shape[0] == gold.shape[0]
+        # Calculate the sent loss and update the batch dependency loss
+        arc_loss += criterion(pred, gold)
+    return arc_loss / len(preds)
+
+
+def tag_loss(gold: List[Tensor], pred: List[Tensor]) -> Tensor:
+    assert len(gold) == len(pred)
+    return nn.CrossEntropyLoss()(
+        torch.cat(pred),
+        torch.cat(gold),
+    )
 
 
 ##################################################
