@@ -61,7 +61,7 @@ def load_config(path: str) -> dict:
 
 
 def pos_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
-    """Prepare the sentence for further processing"""
+    """Prepare the sentence for training a POS tagger"""
     inp = [tok.word_form for tok in sent]
     out = []
     for tok in sent:
@@ -73,8 +73,18 @@ def pos_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
     return inp, out
 
 
+def stag_preprocess(sent: data.Sent) -> Tuple[List[str], List[str]]:
+    """Prepare the sentence for training a supertagger"""
+    inp = [tok.word_form for tok in sent]
+    out = []
+    for tok in sent:
+        stag = tok.best_stag().stag_str
+        out.append(stag)
+    return inp, out
+
+
 def dep_preprocess(sent: data.Sent) -> Tuple[List[str], List[int]]:
-    """Prepare the sentence for further processing"""
+    """Prepare the sentence for training a dependency parser"""
     inp = [tok.word_form for tok in sent]
     out = []
     for tok in sent:
@@ -118,15 +128,15 @@ def do_train(args):
         dev_set = data.read_supertags(args.dev_path)
 
     # data preprocessing
-    train_set = list(map(dep_preprocess, train_set))
+    train_set = list(map(stag_preprocess, train_set))
     if dev_set:
-        dev_set = list(map(dep_preprocess, dev_set))
+        dev_set = list(map(stag_preprocess, dev_set))
 
     # # initialize the model
-    # tagset = set(tag for (inp, out) in train_set for tag in out)
-    # print("# Tagset:", tagset)
-    # model = init_tagger(model_cfg, tagset, args.fast_path)
-    model = init_parser(model_cfg, args.fast_path)
+    tagset = set(tag for (inp, out) in train_set for tag in out)
+    print("# No. of supertags:", len(tagset))
+    model = init_tagger(model_cfg, tagset, args.fast_path)
+    # model = init_parser(model_cfg, args.fast_path)
 
     # train the model on given configuration
     for (n, lr) in zip(
