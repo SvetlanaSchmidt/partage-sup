@@ -70,7 +70,7 @@ class FullStats(ScoreStats):
         pos_acc = self.pos_stats.acc()
         uas = self.uas_stats.acc()
         stag_acc = self.stag_stats.acc()
-        return f"[POS={pos_acc:2.2f} UAS={uas:2.2f} STag={stag_acc:2.2f}]"
+        return f"[POS={pos_acc:05.2f} UAS={uas:05.2f} STag={stag_acc:05.2f}]"
 
 
 def format(x, round_decimals=2):
@@ -229,7 +229,6 @@ class DepParser(nn.Module, Neural[
     AccStats,       # Accuracy stats
 ]):
 
-    # def __init__(self, config, word_emb: PreTrained):
     def __init__(self, config: DepParserConfig, embed: nn.Module):
         super().__init__()
         self.emb = embed
@@ -407,8 +406,6 @@ class Tagger(nn.Module, Neural[
         return self
 
 
-
-
 ##################################################
 # Joint
 ##################################################
@@ -462,6 +459,10 @@ class RoundRobin(nn.Module, Neural[
         # optimized in a given step (i.e. for which sub-module we calculate
         # the `loss`)
         self.step = 0
+        # Configuration, to later save/load the model
+        self.config = config
+        self.posset = posset
+        self.stagset = stagset
 
     def forward(self, sent: Sent) -> Pred:
         return Pred(
@@ -517,6 +518,32 @@ class RoundRobin(nn.Module, Neural[
 
     def module(self):
         return self
+
+    def save(self, path):
+        state = {
+            'config': self.config,
+            'posset': self.posset,
+            'stagset': self.stagset,
+            'state_dict': self.state_dict(),
+        }
+        torch.save(state, path)
+
+    @staticmethod
+    def load(path, emb) -> 'RoundRobin':
+        # device = get_device()
+        # load model state
+        state = torch.load(path)  # , map_location=device)
+        # create new Model with config
+        model = RoundRobin(
+            config=state['config'],
+            posset=state['posset'],
+            stagset=state['stagset'],
+            word_emb=emb,
+        )
+        model.load_state_dict(state['state_dict'], False)
+        # # move to gpu if possible
+        # model.to(device)
+        return model
 
 
 ##################################################

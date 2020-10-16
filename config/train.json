@@ -1,16 +1,9 @@
 {
-    "epochs_num": [
-        40,
-        20,
-        10
+    "stages": [
+	{"epoch_num": 60, "learning_rate": 0.005},
+	{"epoch_num": 30, "learning_rate": 0.001},
+	{"epoch_num": 30, "learning_rate": 0.0005}
     ],
-    "learning_rate": [
-        0.005,
-        0.001,
-        0.0005
-    ],
-    "weight_decay": 0.0,
-    "clip": 150.0,
     "report_rate": 10,
     "batch_size": 32,
     "shuffle": true

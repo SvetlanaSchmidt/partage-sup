@@ -1,7 +1,9 @@
 import argparse
 
 import supertagger.data as data
-from supertagger.tasks.train import do_train
+from supertagger.train import do_train
+from supertagger.tag import do_tag
+
 
 parser = argparse.ArgumentParser(description='supertagger')
 subparsers = parser.add_subparsers(dest='command', help='available commands')
@@ -24,11 +26,11 @@ parser_test.add_argument(
 
 
 #################################################
-# TRAIN TAGGER
+# TRAIN
 #################################################
 
 
-train = subparsers.add_parser('train', help='train the model')
+train = subparsers.add_parser('train', help='train a model')
 
 train.add_argument(
     "-t",
@@ -57,7 +59,7 @@ train.add_argument(
 train.add_argument(
     "--model-config",
     dest="model_config",
-    required=True,
+    required=False,
     help="model config .json file",
     metavar="FILE",
 )
@@ -65,18 +67,50 @@ train.add_argument(
 train.add_argument(
     "--train-config",
     dest="train_config",
-    required=True,
+    required=False,
     help="train config .json file",
     metavar="FILE",
 )
 
-# train.add_argument(
-#     "--save-model",
-#     dest="save_path",
-#     required=False,
-#     help="output path to save the model",
-#     metavar="FILE",
-# )
+train.add_argument(
+    "--save",
+    dest="save_path",
+    required=False,
+    help="output path to save the model",
+    metavar="FILE",
+)
+
+
+#################################################
+# TAG
+#################################################
+
+
+tag = subparsers.add_parser('tag', help='tag with a model')
+
+tag.add_argument(
+    "-i", "--input",
+    dest="input_path",
+    required=True,
+    help="input .supertags file",
+    metavar="FILE",
+)
+
+tag.add_argument(
+    "-l", "--load",
+    dest="load_path",
+    required=True,
+    help="path to load the model from",
+    metavar="FILE",
+)
+
+tag.add_argument(
+    "-f", "--fast-text",
+    dest="fast_path",
+    required=True,
+    help="fastText .bin file",
+    metavar="FILE",
+)
 
 
 #################################################
@@ -85,11 +119,7 @@ train.add_argument(
 
 
 if __name__ == '__main__':
-
-    # get console arguments
     args = parser.parse_args()
-
-    # choose task
     if args.command == 'test':
         for sent in data.read_supertags(args.input_path):
             print("#", [tok.word_form for tok in sent])
@@ -102,6 +132,7 @@ if __name__ == '__main__':
             # for tok in sent:
             #     tree, sent = tok.best_stag().as_tree()
             #     print(data.tree_pos(tree, sent))
-
     if args.command == 'train':
         do_train(args)
+    elif args.command == 'tag':
+        do_tag(args)

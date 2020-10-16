@@ -1,8 +1,8 @@
-from typing import TypedDict, List
+from typing import TypedDict, List, Tuple
 
 
-from supertagger.neural.pro_training import TrainConfig
-from supertagger.tagger.pro_model import \
+from supertagger.neural.training import TrainConfig
+from supertagger.model import \
     TaggerConfig, DepParserConfig, ContextConfig, EmbedConfig, JointConfig
 
 
@@ -40,8 +40,11 @@ model: JointConfig = {
 }
 
 train: TrainConfig = {
-    'epoch_num': [60, 30, 30],
-    'learning_rate': [0.005, 0.001, 0.0005],
+    'stages': [
+        {'epoch_num': 60, 'learning_rate': 0.005},
+        {'epoch_num': 30, 'learning_rate': 0.001},
+        {'epoch_num': 30, 'learning_rate': 0.0005},
+    ],
     'report_rate': 10,
     'batch_size': 32,
     'shuffle': True,
