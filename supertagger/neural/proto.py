@@ -20,8 +20,8 @@ class ScoreStats(Protocol):   # NOTE: Why not 'Protocol[A]'?
         raise NotImplementedError
 
     @abstractmethod
-    def as_score(self: A) -> float:
-        """Export score stats as a float score."""
+    def report(self: A) -> str:
+        """Report stats as a string."""
         raise NotImplementedError
 
 
@@ -34,15 +34,13 @@ class ScoreStats(Protocol):   # NOTE: Why not 'Protocol[A]'?
 Inp = TypeVar('Inp')
 Out = TypeVar('Out')
 Y = TypeVar('Y')
-B = TypeVar('B')
-# Z = TypeVar('Z')
 S = TypeVar('S', bound=ScoreStats, covariant=True)
-class Neural(Protocol[Inp, Out, Y, B, S]):
+class Neural(Protocol[Inp, Out, Y, S]):
 
-    @abstractmethod
-    def forward_batch(self, inp: List[Inp]) -> B:
-        """Used during training"""
-        pass
+    # @abstractmethod
+    # def forward_batch(self, inp: List[Inp]) -> B:
+    #     """Used during training"""
+    #     pass
 
     @abstractmethod
     def forward(self, inp: Inp) -> Y:
@@ -62,7 +60,7 @@ class Neural(Protocol[Inp, Out, Y, B, S]):
     #     pass
 
     @abstractmethod
-    def loss(self, gold: List[Out], pred: B) -> Tensor:
+    def loss(self, batch: List[Tuple[Inp, Out]]) -> Tensor:
         pass
 
     @abstractmethod

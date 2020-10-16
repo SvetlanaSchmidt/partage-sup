@@ -11,31 +11,31 @@ from torch.utils.data import Dataset
 
 # import supertagger.neural.proto
 from supertagger.neural.proto import \
-    ScoreStats, Neural, Inp, Out, Y, B, S
+    ScoreStats, Neural, Inp, Out, Y, S
 from supertagger.neural.utils import \
     batch_loader, simple_loader, eval_on
 
 
-def batch_loss(
-    neural: Neural[Inp, Out, Y, B, S],
-    batch: Iterable[Tuple[Inp, Out]]
-) -> torch.Tensor:
-    inputs = [inp for inp, _ in batch]
-    golds = [out for _, out in batch]
-    # golds = [neural.encode(out) for _, out in batch]
-    return neural.loss(golds, neural.forward_batch(inputs))
-    # loss = torch.tensor(0.0, dtype=torch.float)
-    # for inp, out in batch:
-    #     # x = neural.embed(inp)
-    #     y = neural.forward(inp)
-    #     z = neural.encode(out)
-    #     loss = loss + neural.loss(z, y)
-    # return loss
+# def batch_loss(
+#     neural: Neural[Inp, Out, Y, S],
+#     batch: Iterable[Tuple[Inp, Out]]
+# ) -> torch.Tensor:
+#     inputs = [inp for inp, _ in batch]
+#     golds = [out for _, out in batch]
+#     # golds = [neural.encode(out) for _, out in batch]
+#     return neural.loss(golds, neural.forward_batch(inputs))
+#     # loss = torch.tensor(0.0, dtype=torch.float)
+#     # for inp, out in batch:
+#     #     # x = neural.embed(inp)
+#     #     y = neural.forward(inp)
+#     #     z = neural.encode(out)
+#     #     loss = loss + neural.loss(z, y)
+#     # return loss
 
 
 # TODO: scores could be calculated in batches
 def batch_score(
-    neural: Neural[Inp, Out, Y, B, S],
+    neural: Neural[Inp, Out, Y, S],
     batch: Iterable[Tuple[Inp, Out]]
 ) -> S:
     with torch.no_grad():
@@ -54,7 +54,7 @@ def batch_score(
 
 
 def train(
-    neural: Neural[Inp, Out, Y, B, S],
+    neural: Neural[Inp, Out, Y, S],
     train_set: Dataset[Tuple[Inp, Out]],
     dev_set: Dataset[Tuple[Inp, Out]],
     learning_rate: float = 2e-3,
@@ -102,12 +102,12 @@ def train(
             optimizer.zero_grad()
 
             # forward, backward
-            loss = batch_loss(neural, batch)
+            loss = neural.loss(batch)
             loss.backward()
 
             # # scaling the gradients down, places a limit on the size of the parameter updates
             # # https://pytorch.org/docs/stable/nn.html#clip-grad-norm
-            # nn.utils.clip_grad_norm_(model.parameters(), clip)
+            # nn.utils.clip_grad_norm_(neural.module().parameters(), clip)
 
             # optimize
             optimizer.step()
@@ -123,8 +123,10 @@ def train(
         if (t + 1) % report_rate == 0:
             # with torch.no_grad():
 
-            # # dividing by length of train_set making it comparable
-            # train_loss /= len(train_set)
+            # divide by number of batches to make it comparable across
+            # different datasets (assuming that batch loss is averaged
+            # over the batch)
+            train_loss = train_loss * batch_size / len(train_set)
 
             # training score
             train_score = batch_score(neural, simple_loader(train_set))
@@ -138,8 +140,8 @@ def train(
             msg = (
                 "@{k}: \t"
                 "loss(train)={tl:f} \t"
-                "score(train)={ta:f} \t"
-                "score(dev)={da:f} \t"
+                "score(train)={ta} \t"
+                "score(dev)={da} \t"
                 "time(epoch)={ti}"
             )
 
@@ -151,8 +153,8 @@ def train(
                 msg.format(
                     k=t + 1,
                     tl=train_loss,
-                    ta=train_score.as_score(),
-                    da=dev_score.as_score() if dev_score else 0.,
+                    ta=train_score.report(),
+                    da=dev_score.report() if dev_score else "n/a",
                     ti=datetime.now() - time_begin
                 )
             )
