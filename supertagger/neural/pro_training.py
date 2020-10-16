@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Iterable  # , Type
+from typing import List, Tuple, Iterable, List, TypedDict
 
 from datetime import datetime
 
@@ -16,24 +16,6 @@ from supertagger.neural.utils import \
     batch_loader, simple_loader, eval_on
 
 
-# def batch_loss(
-#     neural: Neural[Inp, Out, Y, S],
-#     batch: Iterable[Tuple[Inp, Out]]
-# ) -> torch.Tensor:
-#     inputs = [inp for inp, _ in batch]
-#     golds = [out for _, out in batch]
-#     # golds = [neural.encode(out) for _, out in batch]
-#     return neural.loss(golds, neural.forward_batch(inputs))
-#     # loss = torch.tensor(0.0, dtype=torch.float)
-#     # for inp, out in batch:
-#     #     # x = neural.embed(inp)
-#     #     y = neural.forward(inp)
-#     #     z = neural.encode(out)
-#     #     loss = loss + neural.loss(z, y)
-#     # return loss
-
-
-# TODO: scores could be calculated in batches
 def batch_score(
     neural: Neural[Inp, Out, Y, S],
     batch: Iterable[Tuple[Inp, Out]]
@@ -53,27 +35,39 @@ def batch_score(
             return total
 
 
+
+# TODO: make sure both lists have the same length; or, better, allow
+# a list of `Train` type.
+class TrainConfig(TypedDict):
+    """Training configuration"""
+    epoch_num: List[int]
+    learning_rate: List[float]
+    report_rate: int
+    batch_size: int
+    shuffle: bool
+    # weight_decay: float = 0.01
+    # clip: float = 5.0
+
+
 def train(
     neural: Neural[Inp, Out, Y, S],
     train_set: Dataset[Tuple[Inp, Out]],
     dev_set: Dataset[Tuple[Inp, Out]],
     learning_rate: float = 2e-3,
-    weight_decay: float = 0.01,
-    clip: float = 5.0,
+    # weight_decay: float = 0.01,
+    # clip: float = 5.0,
     epoch_num: int = 60,
     batch_size: int = 64,
     report_rate: int = 10,
     shuffle: bool = True,
 ):
-    # internal config
-    round_decimals: int = 4
-
     # choose Adam for optimization
     # https://pytorch.org/docs/stable/optim.html#torch.optim.Adam
     optimizer = Adam(
         neural.module().parameters(),
         lr=learning_rate,
-        weight_decay=weight_decay,
+        # https://github.com/kawu/mwe-collab/issues/54
+        # weight_decay=weight_decay,
     )
 
     # create batched loader
@@ -136,7 +130,7 @@ def train(
             if dev_set:
                 dev_score = batch_score(neural, simple_loader(dev_set))
 
-            # create message object
+            # print stats
             msg = (
                 "@{k}: \t"
                 "loss(train)={tl:f} \t"
@@ -145,10 +139,6 @@ def train(
                 "time(epoch)={ti}"
             )
 
-            # def format(x):
-            #     return round(x, round_decimals)
-
-            # print and format
             print(
                 msg.format(
                     k=t + 1,

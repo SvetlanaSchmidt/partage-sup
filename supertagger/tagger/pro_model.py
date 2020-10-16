@@ -1,4 +1,5 @@
-from typing import Set, Iterable, List, Sequence, Tuple, Optional, Any, TypeVar
+from typing import Set, Iterable, List, Sequence, Tuple, Optional, \
+    Any, TypeVar, TypedDict
 from dataclasses import dataclass
 # import enum
 
@@ -20,15 +21,9 @@ from supertagger.neural.biaffine import BiAffine, unpad_biaffine
 
 from supertagger.neural.proto import ScoreStats, Neural
 
-# from supertagger.data import Sent
-
-# from pine.tagger.encoder.seq import Tag => str
-
-# import timeit
-
 
 ##################################################
-# Tagger
+# Statistics
 ##################################################
 
 
@@ -87,13 +82,20 @@ def format(x, round_decimals=2):
 ##################################################
 
 
+class EmbedConfig(TypedDict):
+    """Configuration of the BiLSTM, contextualiaztion layer"""
+    size: int
+    dropout: float
+
+
 class Embed(nn.Module):
-    """Embedding module"""
+    """Embedding module.
+    
+    Type: Iterable[Sent] -> PackedSequence
+    """
 
     def __init__(self, word_emb: PreTrained):
-        super(Embed, self).__init__()
-
-        # Store the word embedding module
+        super().__init__()
         self.word_emb = word_emb
 
     def forward(self, batch: Iterable[Sent]) -> PackedSequence:
@@ -106,7 +108,7 @@ class Embed(nn.Module):
             for sent in batch
         ]
 
-        # Assert that, for each sentence in the batch, for each embedding,
+        # Assert that, for each sentence in the batch, for each embed,
         # its size is correct
         emb_size = self.word_emb.embedding_dim()
         for sent_emb in batch_embs:
@@ -116,16 +118,27 @@ class Embed(nn.Module):
         return rnn.pack_sequence(batch_embs, enforce_sorted=False)
 
 
-class Context(nn.Module):
-    """Contextualization module"""
+class ContextConfig(TypedDict):
+    """Configuration of the BiLSTM, contextualization layer"""
+    inp_size: int
+    out_size: int
+    depth: int
+    dropout: float
 
-    def __init__(self, config):
+
+class Context(nn.Module):
+    """Contextualization module.
+    
+    Type: PackedSequence -> PackedSequence
+    """
+
+    def __init__(self, config: ContextConfig):
         super().__init__()
         self.bilstm = BiLSTM(
-            in_size=config['lstm']['in_size'],
-            out_size=config['lstm']['out_size'],
-            depth=config['lstm']['depth'],
-            dropout=config['lstm']['dropout'],
+            in_size=config['inp_size'],
+            out_size=config['out_size'],
+            depth=config['depth'],
+            dropout=config['dropout'],
         )
 
     def forward(self, embs: PackedSequence) -> PackedSequence:
@@ -133,7 +146,10 @@ class Context(nn.Module):
 
 
 class PackedSeqDropout(nn.Module):
-    """Packed sequence dropout"""
+    """Packed sequence dropout.
+    
+    Type: PackedSequence -> PackedSequence
+    """
 
     def __init__(self, dropout: float):
         super().__init__()
@@ -150,7 +166,10 @@ class PackedSeqDropout(nn.Module):
 
 
 class Score(nn.Module):
-    """Scoring module"""
+    """Scoring module.
+    
+    Type: PackedSequence -> PackedSequence
+    """
 
     def __init__(self, in_size: int, out_size: int):
         super().__init__()
@@ -176,8 +195,11 @@ class Score(nn.Module):
         return scores
 
 
-class PackedSeqToBatch(nn.Module):
-    """Transforming a packed sequence to a batched representation"""
+class Packed2Padded(nn.Module):
+    """Transform a packed sequence to a padded representation.
+    
+    Type: PackedSequence -> Tuple[Tensor, Tensor]
+    """
 
     def __init__(self):
         super().__init__()
@@ -188,119 +210,16 @@ class PackedSeqToBatch(nn.Module):
 
 
 ##################################################
-# Utils
-##################################################
-
-
-A = TypeVar('A')
-B = TypeVar('B')
-def split_batch(batch: List[Tuple[A, B]]) -> Tuple[List[A], List[B]]:
-    return zip(*batch)  # type: ignore
-
-
-##################################################
-# Joint
-##################################################
-
-
-@dataclass(frozen=True)
-class Out:
-    """Per-token output (which we want to predict)"""
-    pos: str    # POS tag
-    head: int   # Dependency head
-    stag: str   # Supertag
-
-
-@dataclass(frozen=True)
-class Pred:
-    """Predicted tensors (tensor representation of `Out`)"""
-    posP: Tensor
-    headP: Tensor
-    stagP: Tensor
-
-
-class RoundRobin(nn.Module, Neural[
-    Sent,                       # Input: list of words
-    List[Out],                  # Output: list of token-level outputs
-    Pred,                       # Predicted tensor (can be `decode`d)
-    FullStats,                  # Accuracy stats
-]):
-    def __init__(
-        self,
-        config,
-        posset: Set[str],
-        stagset: Set[str],
-        word_emb: PreTrained,
-    ):
-        super().__init__()
-        # Embedding+contextualization layer
-        self.embed = nn.Sequential(Embed(word_emb), Context(config))
-        # Modules for the individual tasks
-        self.pos_tagger = Tagger(config, posset, self.embed)
-        self.super_tagger = Tagger(config, stagset, self.embed)
-        self.dep_parser = DepParser(config, self.embed)
-        # Internal state
-        self.step = 0
-
-    def forward(self, sent: Sent) -> Pred:
-        return Pred(
-            posP = self.pos_tagger(sent),
-            headP = self.dep_parser(sent),
-            stagP = self.super_tagger(sent),
-        )
-
-    def decode(self, pred: Pred) -> List[Out]:
-        heads = self.dep_parser.decode(pred.headP)
-        tags = self.pos_tagger.decode(pred.posP)
-        stags = self.super_tagger.decode(pred.stagP)
-        assert len(heads) == len(tags) == len(stags)
-        outs = []
-        for k in range(len(heads)):
-            outs.append(Out(pos=tags[k], head=heads[k], stag=stags[k]))
-        return outs
-
-    def loss(self, batch: List[Tuple[Sent, List[Out]]]) -> Tensor:
-        k = self.step
-        self.step = (self.step + 1) % 3
-        inps, gold_all = split_batch(batch)
-        if k == 0:
-            gold = [[x.pos for x in sent] for sent in gold_all]
-            return self.pos_tagger.loss(list(zip(inps, gold)))
-        elif k == 1:
-            gold = [[x.stag for x in sent] for sent in gold_all]
-            return self.super_tagger.loss(list(zip(inps, gold)))
-        elif k == 2:
-            goldh = [[x.head for x in sent] for sent in gold_all]
-            return self.dep_parser.loss(list(zip(inps, goldh)))
-        else:
-            raise RuntimeError("Invalid value of `self.step`")
-
-    def score(self, golds: List[Out], preds: List[Out]) -> FullStats:
-        pos, uas, stag, n = 0, 0, 0, 0
-        for (pred, gold) in zip(preds, golds):
-            if pred.pos == gold.pos:
-                pos += 1
-            if pred.head == gold.head:
-                uas += 1
-            if pred.stag == gold.stag:
-                stag += 1
-            n += 1
-        pos_stats = AccStats(tp_num=pos, all_num=n)
-        uas_stats = AccStats(tp_num=uas, all_num=n)
-        stag_stats = AccStats(tp_num=stag, all_num=n)
-        return FullStats(
-            pos_stats=pos_stats,
-            uas_stats=uas_stats,
-            stag_stats=stag_stats,
-        )
-
-    def module(self):
-        return self
-
-
-##################################################
 # DepParser
 ##################################################
+
+
+class DepParserConfig(TypedDict):
+    """Configuration of a dependency parser"""
+    inp_size: int
+    hid_size: int
+    out_size: int
+    dropout: float
 
 
 class DepParser(nn.Module, Neural[
@@ -311,24 +230,23 @@ class DepParser(nn.Module, Neural[
 ]):
 
     # def __init__(self, config, word_emb: PreTrained):
-    def __init__(self, config, embed: nn.Module):
+    def __init__(self, config: DepParserConfig, embed: nn.Module):
         super().__init__()
         self.emb = embed
-        self.ctx_dropout = PackedSeqDropout(config['lstm']['dropout'])
         self.head_repr = MLP(
-            in_size=config['lstm']['out_size'] * 2,
-            hid_size=config['mlp_head_dep']['hidden_size'],
-            out_size=config['mlp_head_dep']['out_size'],
-            dropout=config['mlp_head_dep']['dropout'],
+            in_size=config['inp_size'],
+            hid_size=config['hid_size'],
+            out_size=config['out_size'],
+            dropout=config['dropout'],
         )
         self.dep_repr = MLP(
-            in_size=config['lstm']['out_size'] * 2,
-            hid_size=config['mlp_head_dep']['hidden_size'],
-            out_size=config['mlp_head_dep']['out_size'],
-            dropout=config['mlp_head_dep']['dropout'],
+            in_size=config['inp_size'],
+            hid_size=config['hid_size'],
+            out_size=config['out_size'],
+            dropout=config['dropout'],
         )
         # A biaffine arc scoring model
-        self.heads = BiAffine(repr_size=config['mlp_head_dep']['out_size'])
+        self.heads = BiAffine(repr_size=config['out_size'])
 
     def forward_batch(self, batch: List[Sent]) -> List[Tensor]:
         # Calculate the embeddings and contextualize them
@@ -422,6 +340,12 @@ class DepParser(nn.Module, Neural[
 ##################################################
 
 
+class TaggerConfig(TypedDict):
+    """Configuration of a tagger"""
+    inp_size: int
+    dropout: float
+
+
 class Tagger(nn.Module, Neural[
     Sent,
     List[str],
@@ -429,7 +353,7 @@ class Tagger(nn.Module, Neural[
     AccStats,
 ]):
     # def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
-    def __init__(self, config, tagset: Set[str], embed: nn.Module):
+    def __init__(self, config: TaggerConfig, tagset: Set[str], embed: nn.Module):
         # Required by nn.Module
         super().__init__()
         # Encoding (mapping between tags and integers)
@@ -437,8 +361,8 @@ class Tagger(nn.Module, Neural[
         # Neural sub-modules
         self.net = nn.Sequential(
             embed,
-            PackedSeqDropout(config['lstm']['dropout']),
-            Score(config['lstm']['out_size']*2, len(tagset)),
+            PackedSeqDropout(config['dropout']),
+            Score(config['inp_size'], len(tagset)),
         )
 
     def forward_batch(self, batch: List[Sent]) -> List[Tensor]:
@@ -478,6 +402,118 @@ class Tagger(nn.Module, Neural[
                 k += 1
             n += 1
         return AccStats(tp_num=k, all_num=n)
+
+    def module(self):
+        return self
+
+
+
+
+##################################################
+# Joint
+##################################################
+
+
+class JointConfig(TypedDict):
+    """Configuration of the BiLSTM, contextualiaztion layer"""
+    embed: EmbedConfig
+    context: ContextConfig
+    tagger: TaggerConfig
+    parser: DepParserConfig
+
+
+@dataclass(frozen=True)
+class Out:
+    """Per-token output (which we want to predict)"""
+    pos: str    # POS tag
+    head: int   # Dependency head
+    stag: str   # Supertag
+
+
+@dataclass(frozen=True)
+class Pred:
+    """Predicted tensors (tensor representation of `Out`)"""
+    posP: Tensor
+    headP: Tensor
+    stagP: Tensor
+
+
+class RoundRobin(nn.Module, Neural[
+    Sent,                       # Input: list of words
+    List[Out],                  # Output: list of token-level outputs
+    Pred,                       # Predicted tensor (can be `decode`d)
+    FullStats,                  # Accuracy stats
+]):
+    def __init__(
+        self,
+        config,
+        posset: Set[str],
+        stagset: Set[str],
+        word_emb: PreTrained,
+    ):
+        super().__init__()
+        # Embedding+contextualization layer
+        self.embed = nn.Sequential(Embed(word_emb), Context(config['context']))
+        # Modules for the individual tasks
+        self.pos_tagger = Tagger(config['tagger'], posset, self.embed)
+        self.super_tagger = Tagger(config['tagger'], stagset, self.embed)
+        self.dep_parser = DepParser(config['parser'], self.embed)
+        # Internal state, which determines which of the sub-modules gets
+        # optimized in a given step (i.e. for which sub-module we calculate
+        # the `loss`)
+        self.step = 0
+
+    def forward(self, sent: Sent) -> Pred:
+        return Pred(
+            posP = self.pos_tagger(sent),
+            headP = self.dep_parser(sent),
+            stagP = self.super_tagger(sent),
+        )
+
+    def decode(self, pred: Pred) -> List[Out]:
+        heads = self.dep_parser.decode(pred.headP)
+        tags = self.pos_tagger.decode(pred.posP)
+        stags = self.super_tagger.decode(pred.stagP)
+        assert len(heads) == len(tags) == len(stags)
+        outs = []
+        for k in range(len(heads)):
+            outs.append(Out(pos=tags[k], head=heads[k], stag=stags[k]))
+        return outs
+
+    def loss(self, batch: List[Tuple[Sent, List[Out]]]) -> Tensor:
+        k = self.step
+        self.step = (self.step + 1) % 3
+        inps, gold_all = split_batch(batch)
+        if k == 0:
+            gold = [[x.pos for x in sent] for sent in gold_all]
+            return self.pos_tagger.loss(list(zip(inps, gold)))
+        elif k == 1:
+            gold = [[x.stag for x in sent] for sent in gold_all]
+            return self.super_tagger.loss(list(zip(inps, gold)))
+        elif k == 2:
+            goldh = [[x.head for x in sent] for sent in gold_all]
+            return self.dep_parser.loss(list(zip(inps, goldh)))
+        else:
+            raise RuntimeError("Invalid value of `self.step`")
+
+    def score(self, golds: List[Out], preds: List[Out]) -> FullStats:
+        pos, uas, stag, n = 0, 0, 0, 0
+        for (pred, gold) in zip(preds, golds):
+            if pred.pos == gold.pos:
+                pos += 1
+            if pred.head == gold.head:
+                uas += 1
+            if pred.stag == gold.stag:
+                stag += 1
+            n += 1
+        pos_stats = AccStats(tp_num=pos, all_num=n)
+        uas_stats = AccStats(tp_num=uas, all_num=n)
+        stag_stats = AccStats(tp_num=stag, all_num=n)
+        return FullStats(
+            pos_stats=pos_stats,
+            uas_stats=uas_stats,
+            stag_stats=stag_stats,
+        )
 
     def module(self):
         return self
@@ -543,3 +579,14 @@ class Tagger(nn.Module, Neural[
 
 #     def module(self):
 #         return self
+
+
+##################################################
+# Utils
+##################################################
+
+
+A = TypeVar('A')
+B = TypeVar('B')
+def split_batch(batch: List[Tuple[A, B]]) -> Tuple[List[A], List[B]]:
+    return zip(*batch)  # type: ignore
