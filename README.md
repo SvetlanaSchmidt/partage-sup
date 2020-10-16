@@ -5,6 +5,13 @@ This repository contains a [PyTorch](pytorch)-based implementation of a TAG/TWG
 supertagger.
 
 
+**Table of Contents**
+
+- [Installation](#installation)
+- [Usage](#usage)
+- [Experiments](#experiments)
+
+
 Installation
 ------------
 
@@ -81,10 +88,20 @@ python -m supertagger blind -i input.supertags > input.blind.supertags
 ```
 
 
-TWG experiment
---------------
+Experiments
+-----------
 
-TODO
+If you installed all the dependencies and pulled all sub-modules, just run:
+```bash
+produce
+```
+
+<!---
+Make sure all sub-modules are pulled:
+```bash
+git submodule update -\-init -\-recursive
+```
+-->
 
 
 
