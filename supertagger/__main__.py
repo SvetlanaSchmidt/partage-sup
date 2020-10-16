@@ -3,6 +3,7 @@ import argparse
 import supertagger.data as data
 from supertagger.train import do_train
 from supertagger.tag import do_tag
+from supertagger.eval import do_eval
 
 
 parser = argparse.ArgumentParser(description='supertagger')
@@ -80,6 +81,15 @@ train.add_argument(
     metavar="FILE",
 )
 
+train.add_argument(
+    "--emb",
+    dest="emb_size",
+    required=False,
+    type=int,
+    help="embedding size",
+    metavar="FILE",
+)
+
 
 #################################################
 # TAG
@@ -114,6 +124,30 @@ tag.add_argument(
 
 
 #################################################
+# EVAL
+#################################################
+
+
+eva = subparsers.add_parser('eval', help='evaluate')
+
+eva.add_argument(
+    "-g", "--gold",
+    dest="gold_path",
+    required=True,
+    help="gold .supertags file",
+    metavar="FILE",
+)
+
+eva.add_argument(
+    "-p", "--pred",
+    dest="pred_path",
+    required=True,
+    help="predicted .supertags file",
+    metavar="FILE",
+)
+
+
+#################################################
 # MAIN
 #################################################
 
@@ -136,3 +170,5 @@ if __name__ == '__main__':
         do_train(args)
     elif args.command == 'tag':
         do_tag(args)
+    elif args.command == 'eval':
+        do_eval(args)

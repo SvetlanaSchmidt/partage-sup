@@ -497,24 +497,8 @@ class RoundRobin(nn.Module, Neural[
         else:
             raise RuntimeError("Invalid value of `self.step`")
 
-    def score(self, golds: List[Out], preds: List[Out]) -> FullStats:
-        pos, uas, stag, n = 0, 0, 0, 0
-        for (pred, gold) in zip(preds, golds):
-            if pred.pos == gold.pos:
-                pos += 1
-            if pred.head == gold.head:
-                uas += 1
-            if pred.stag == gold.stag:
-                stag += 1
-            n += 1
-        pos_stats = AccStats(tp_num=pos, all_num=n)
-        uas_stats = AccStats(tp_num=uas, all_num=n)
-        stag_stats = AccStats(tp_num=stag, all_num=n)
-        return FullStats(
-            pos_stats=pos_stats,
-            uas_stats=uas_stats,
-            stag_stats=stag_stats,
-        )
+    def score(self, gold: List[Out], pred: List[Out]) -> FullStats:
+        return full_stats(gold, pred)
 
     def module(self):
         return self
@@ -544,6 +528,26 @@ class RoundRobin(nn.Module, Neural[
         # # move to gpu if possible
         # model.to(device)
         return model
+
+
+def full_stats(golds: List[Out], preds: List[Out]) -> FullStats:
+    pos, uas, stag, n = 0, 0, 0, 0
+    for (pred, gold) in zip(preds, golds):
+        if pred.pos == gold.pos:
+            pos += 1
+        if pred.head == gold.head:
+            uas += 1
+        if pred.stag == gold.stag:
+            stag += 1
+        n += 1
+    pos_stats = AccStats(tp_num=pos, all_num=n)
+    uas_stats = AccStats(tp_num=uas, all_num=n)
+    stag_stats = AccStats(tp_num=stag, all_num=n)
+    return FullStats(
+        pos_stats=pos_stats,
+        uas_stats=uas_stats,
+        stag_stats=stag_stats,
+    )
 
 
 ##################################################

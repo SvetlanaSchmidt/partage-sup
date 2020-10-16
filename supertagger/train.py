@@ -58,6 +58,11 @@ def do_train(args):
         model_cfg = cfg.model
     else:
         model_cfg = load_config(args.model_config)
+
+    if args.emb_size is not None:
+        model_cfg['embed']['size'] = args.emb_size
+        model_cfg['context']['inp_size'] = args.emb_size
+
     print("# Model:", model_cfg)
     print("# Training:", train_cfg)
 
