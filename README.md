@@ -1,22 +1,82 @@
-# Install
+TWG Supertagger
+===============
 
+This repository contains a PyTorch-based implementation of a TAG/TWG
+supertagger.
+
+
+Installation
+------------
+
+The tool requires Python 3.8+.  If you use conda, you can set up an appropriate
+environment using the following commands (substituting `<env-name>` for the
+name of the environment):
 ```bash
-conda create -n stag python=3.8
-conda activate stag
+conda create -n <env-name> python=3.8
+conda activate <env-name>
 ```
-
-If you do not need GPU support:
+Then, to install (most of) the dependencies:
 ```bash
 pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
 ```
+<!---
 otherwise:
 ```bash
 pip install -r requirements-gpu.txt
 ```
-
-Then install [disco-dop](https://github.com/andreasvc/disco-dop#installation).
-**WARNING**: if you use conda, you should probably not use `--user` when
-`pip`-installing disco-dop.
+-->
+Finally, install `disco-dop` from its [github
+repository](https://github.com/andreasvc/disco-dop#installation) (the [version
+on PyPI](https://pypi.org/project/disco-dop/) is outdated).
 <!---
+(**warning**: if you use conda, you should probably *not* use `-\-user` when
+`pip`-installing disco-dop).
+
 Discodop require `make install`, is it possible to put it in `requirements.txt`?
 -->
+
+
+Usage
+-----
+
+#### Data format
+
+The tool supports the same format as [partage][partage-format].
+
+#### Configuration
+
+The model (embedding size, BiLSTM depth, etc.) and training (number of epochs,
+learning rates, etc.) configuration is currently hard-coded in
+`supertagger/config.py`.  It be replaced during training by providing
+appropriate `.json` configuration files.
+
+#### Training
+
+To train a supertagging model, you will need:
+* `fastText.bin`: [fastText][fastText] model (**important**: the size of the
+  fastText model has to be specified in the [configuration](#configuration))
+* `train.supertags`: training dataset (see [data format](#data-format))
+* (optional) `dev.supertags`: development dataset
+Then, to train a model and save it in `model.pth`:
+```bash
+python -m supertagger train -f fastText.bin -t train.supertags -d dev.supertags --save model.pth
+```
+See `python -m supertagger train --help` for additional training options.
+
+#### Tagging
+
+The use an existing model to supertag a given `input.supertags` file:
+```bash
+python -m supertagger tag -f fastText.bin -i input.supertags
+```
+
+
+TWG experiment
+--------------
+
+TODO
+
+
+
+[partage-format]: https://github.com/kawu/partage#data-format "ParTAGe data format"
+[fastText]: https://fasttext.cc/ "fastText"
