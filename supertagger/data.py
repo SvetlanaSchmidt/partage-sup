@@ -1,4 +1,4 @@
-from typing import Iterable, List, Dict, Optional, Tuple
+from typing import Iterable, List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 
 import discodop.tree as disco  # type: ignore
@@ -44,14 +44,26 @@ class Token:
 
     def best_head(self) -> int:
         """Retrieve the head with the highest probability."""
-        def snd(tup): return tup[1]
-        return sorted(self.head_dist.items(), key=snd, reverse=True)[0][0]
+        return self.dist2list(self.head_dist)[0][0]
 
     def best_stag(self) -> STag:
         """Retrieve the supertag with the highest probability."""
-        def snd(tup): return tup[1]
-        return sorted(self.stag_dist.items(), key=snd, reverse=True)[0][0]
+        return self.dist2list(self.stag_dist)[0][0]
 
+    def render(self) -> str:
+        head_str = '|'.join(
+            f"{head}:{prob}"
+            for head, prob in self.dist2list(self.head_dist)
+        )
+        stag_str = '\t'.join(
+            f"{stag.stag_str}:{prob}"
+            for stag, prob in self.dist2list(self.stag_dist)
+        )
+        return f"{self.tok_id}\t{self.word_form}\t{head_str}\t{stag_str}"
+
+    def dist2list(self, dist: Dict[Any, float]) -> List[Tuple[Any, float]]:
+        def snd(tup): return tup[1]
+        return sorted(dist.items(), key=snd, reverse=True)
 
 # @dataclass(frozen=True)
 # class Sent:
@@ -94,3 +106,8 @@ def parse_stag_dist(stags: List[str]) -> Dict[STag, float]:
         stag, prob = pair.split(":")
         xs.append((STag(stag), float(prob)))
     return dict(xs)
+
+
+def render_sent(sent: Sent) -> str:
+    """Render the sentence in the .supertags format."""
+    return "\n".join(tok.render() for tok in sent)
