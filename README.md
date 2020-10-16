@@ -1,7 +1,7 @@
 TWG Supertagger
 ===============
 
-This repository contains a PyTorch-based implementation of a TAG/TWG
+This repository contains a [PyTorch](pytorch)-based implementation of a TAG/TWG
 supertagger.
 
 
@@ -12,7 +12,7 @@ The tool requires Python 3.8+.  If you use conda, you can set up an appropriate
 environment using the following commands (substituting `<env-name>` for the
 name of the environment):
 ```bash
-conda create -n <env-name> python=3.8
+conda create --name <env-name> python=3.8
 conda activate <env-name>
 ```
 Then, to install (most of) the dependencies:
@@ -47,16 +47,18 @@ The tool supports the same format as [partage][partage-format].
 
 The model (embedding size, BiLSTM depth, etc.) and training (number of epochs,
 learning rates, etc.) configuration is currently hard-coded in
-`supertagger/config.py`.  It be replaced during training by providing
-appropriate `.json` configuration files.
+[supertagger/config.py](supertagger/config.py).  It be replaced during training
+by providing appropriate `.json` configuration files.
 
 #### Training
 
 To train a supertagging model, you will need:
-* `fastText.bin`: [fastText][fastText] model (**important**: the size of the
-  fastText model has to be specified in the [configuration](#configuration))
-* `train.supertags`: training dataset (see [data format](#data-format))
-* (optional) `dev.supertags`: development dataset
+* `fastText.bin`: a binary [fastText][fastText] model (**important**: the size
+  of the fastText model must be specified in the
+  [configuration](#configuration))
+* `train.supertags`: a training dataset (see [data format](#data-format))
+* `dev.supertags` (optional): a development dataset
+
 Then, to train a model and save it in `model.pth`:
 ```bash
 python -m supertagger train -f fastText.bin -t train.supertags -d dev.supertags --save model.pth
@@ -65,9 +67,17 @@ See `python -m supertagger train --help` for additional training options.
 
 #### Tagging
 
-The use an existing model to supertag a given `input.supertags` file:
+To use an existing model to supertag a given `input.supertags` file:
 ```bash
 python -m supertagger tag -f fastText.bin -i input.supertags
+```
+
+#### Blind
+
+TODO: add a command to remove supertagging information from a given
+supertagging file:
+```bash
+python -m supertagger blind -i input.supertags > input.blind.supertags
 ```
 
 
@@ -80,3 +90,5 @@ TODO
 
 [partage-format]: https://github.com/kawu/partage#data-format "ParTAGe data format"
 [fastText]: https://fasttext.cc/ "fastText"
+[pytorch]: https://pytorch.org/ "PyTorch"
+
