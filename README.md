@@ -79,10 +79,10 @@ To use an existing model to supertag a given `input.supertags` file:
 python -m supertagger tag -f fastText.bin -i input.supertags
 ```
 
-#### Blind
+#### TODO: Blind
 
-TODO: add a command to remove supertagging information from a given
-supertagging file:
+Add a command to remove supertagging information from a given supertagging
+file, e.g.:
 ```bash
 python -m supertagger blind -i input.supertags > input.blind.supertags
 ```
@@ -91,21 +91,35 @@ python -m supertagger blind -i input.supertags > input.blind.supertags
 Experiments
 -----------
 
-If you installed all the dependencies and pulled all sub-modules, just run:
+First make sure that the `TWG` sub-module is available.  If not sure, run:
 ```bash
-produce
+git submodule update --init --recursive
 ```
 
-<!---
-Make sure all sub-modules are pulled:
+To run the supertagger on the French TWG dataset:
 ```bash
-git submodule update -\-init -\-recursive
+produce data/exp.300/dev.eval
 ```
--->
+This will download the corresponding [fastText](fastText) French model, train
+the supertagging model, and output the evaluation scores on the dev set (you
+can replace `dev` with `test` in the command above to get the results on the
+test set).
+
+To speed up the process, you can alternatively run an experiment with a [smaller,
+100-dimensional fastText model](fastText-fr-small) using the following command:
+```bash
+produce data/exp.100/dev.eval
+```
+Note that, due to a reduced size of the embedding model, the evaluation scores
+may be significantly lower in this setting.  Official [fastText](fastText)
+models are 300-dimensional and the one required for this experiment was
+obtained using the Python `fasttext.util.reduce_model` function (see [this
+thread](fastText-reduction)).
 
 
 
 [partage-format]: https://github.com/kawu/partage#data-format "ParTAGe data format"
 [fastText]: https://fasttext.cc/ "fastText"
 [pytorch]: https://pytorch.org/ "PyTorch"
-
+[fastText-reduction]: https://stackoverflow.com/questions/58930298/reducing-size-of-facebooks-fasttext-word2vec "Reducing the size of fastText models"
+[fastText-fr-small]: https://user.phil.hhu.de/~waszczuk/treegrasp/fasttext/cc.fr.100.bin.gz "100-dimensional fastText French model"
