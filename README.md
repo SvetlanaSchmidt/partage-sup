@@ -1,7 +1,7 @@
 TWG Supertagger
 ===============
 
-This repository contains a [PyTorch](pytorch)-based implementation of a TAG/TWG
+This repository contains a [PyTorch][pytorch]-based implementation of a TAG/TWG
 supertagger.
 
 
@@ -100,21 +100,22 @@ To run the supertagger on the French TWG dataset:
 ```bash
 produce data/exp.300/dev.eval
 ```
-This will download the corresponding [fastText](fastText) French model, train
+This will download the corresponding [fastText][fastText] French model, train
 the supertagging model, and output the evaluation scores on the dev set (you
 can replace `dev` with `test` in the command above to get the results on the
 test set).
 
-To speed up the process, you can alternatively run an experiment with a [smaller,
-100-dimensional fastText model](fastText-fr-small) using the following command:
+To speed up the process, you can alternatively run an experiment with a
+smaller, [100-dimensional fastText model][fastText-fr-small] using the
+following command:
 ```bash
 produce data/exp.100/dev.eval
 ```
 Note that, due to a reduced size of the embedding model, the evaluation scores
-may be significantly lower in this setting.  Official [fastText](fastText)
+may be significantly lower in this setting.  Official [fastText][fastText]
 models are 300-dimensional and the one required for this experiment was
 obtained using the Python `fasttext.util.reduce_model` function (see [this
-thread](fastText-reduction)).
+thread][fastText-reduction]).
 
 
 
