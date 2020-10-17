@@ -78,13 +78,16 @@ def read_supertags(path: str) -> Iterable[Sent]:
         sent = []
         for line in data_file:
             if line.strip():
-                tok_id, word, heads, *stags = line.split("\t")
-                sent.append(Token(
-                    tok_id=int(tok_id),
-                    word_form=word,
-                    head_dist=parse_head_dist(heads),
-                    stag_dist=parse_stag_dist(stags),
-                ))
+                try:
+                    tok_id, word, heads, *stags = line.split("\t")
+                    sent.append(Token(
+                        tok_id=int(tok_id),
+                        word_form=word,
+                        head_dist=parse_head_dist(heads),
+                        stag_dist=parse_stag_dist(stags),
+                    ))
+                except:
+                    raise RuntimeError(f"Couldn't parse line: {line}")
             else:
                 yield sent
                 sent = []

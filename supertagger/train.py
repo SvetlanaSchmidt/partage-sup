@@ -69,10 +69,12 @@ def do_train(args):
     # Load and proprocess the datasets
     train_set_raw = data.read_supertags(args.train_path)
     train_set = list(map(preprocess, train_set_raw))
+    print("# No. of sentence in train:", len(train_set))
     dev_set = []
     if args.dev_path:
         dev_set_raw = data.read_supertags(args.dev_path)
         dev_set = list(map(preprocess, dev_set_raw))
+        print("# No. of sentence in dev:", len(dev_set))
 
     # Initialize the model
     posset = set(x.pos for (inp, out) in train_set for x in out)
