@@ -247,6 +247,8 @@ class DepParser(nn.Module, Neural[
         )
         # A biaffine arc scoring model
         self.heads = BiAffine(repr_size=config['out_size'])
+        # Move to appropriate device
+        self.to(device)
 
     def forward_batch(self, batch: List[Sent]) -> List[Tensor]:
         # Calculate the embeddings and contextualize them
@@ -373,6 +375,8 @@ class Tagger(nn.Module, Neural[
             PackedSeqDropout(config['dropout']),
             Score(config['inp_size'], len(tagset)),
         )
+        # Move to appropriate device
+        self.to(device)
 
     def forward_batch(self, batch: List[Sent]) -> List[Tensor]:
         return unpack(self.net(batch))
@@ -480,6 +484,8 @@ class RoundRobin(nn.Module, Neural[
         self.config = config
         self.posset = posset
         self.stagset = stagset
+        # Move to appropriate device
+        self.to(device)
 
     def forward(self, sent: Sent) -> Pred:
         return Pred(
