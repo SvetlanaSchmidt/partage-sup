@@ -3,6 +3,7 @@ from typing import Set, Tuple, List
 from datetime import datetime
 import json
 
+import torch
 import torch.nn as nn
 
 from supertagger.neural.training import train
@@ -82,13 +83,20 @@ def do_train(args):
     print("# No. of POS tags:", len(posset))
     stagset = set(x.stag for (inp, out) in train_set for x in out)
     print("# No. of supertags:", len(stagset))
+
     # Device
-    device = "cpu"
     if args.device is not None:
         device = args.device
-    elif train_cfg['cuda'] and torch.cuda_is_available():
+    elif train_cfg['cuda'] and torch.cuda.is_available():
         device = "cuda"
-    model = init_model(model_cfg, posset, stagset, args.fast_path, device)
+    else:
+        device = "cpu"
+    print("# CUDA available:", torch.cuda.is_available())
+    print("# Device:", device)
+
+    # Initialize model
+    model = init_model(
+        model_cfg, posset, stagset, args.fast_path, device)
 
     # Train the model
     for stage in train_cfg['stages']:

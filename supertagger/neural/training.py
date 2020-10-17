@@ -47,6 +47,7 @@ class TrainConfig(TypedDict):
     report_rate: int
     batch_size: int
     shuffle: bool
+    cuda: bool
     # weight_decay: float = 0.01
     # clip: float = 5.0
 
