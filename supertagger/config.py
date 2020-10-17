@@ -48,4 +48,5 @@ train: TrainConfig = {
     'report_rate': 10,
     'batch_size': 32,
     'shuffle': True,
+    'cuda': True,   # Use CUDA if possible
 }

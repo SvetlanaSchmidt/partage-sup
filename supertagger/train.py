@@ -77,13 +77,18 @@ def do_train(args):
         dev_set = list(map(preprocess, dev_set_raw))
         print("# No. of sentences in dev:", len(dev_set))
 
-    # Initialize the model
+    # Tag sets
     posset = set(x.pos for (inp, out) in train_set for x in out)
     print("# No. of POS tags:", len(posset))
     stagset = set(x.stag for (inp, out) in train_set for x in out)
     print("# No. of supertags:", len(stagset))
-    model = init_model(
-        model_cfg, posset, stagset, args.fast_path, args.device)
+    # Device
+    device = "cpu"
+    if args.device is not None:
+        device = args.device
+    elif train_cfg['cuda'] and torch.cuda_is_available():
+        device = "cuda"
+    model = init_model(model_cfg, posset, stagset, args.fast_path, device)
 
     # Train the model
     for stage in train_cfg['stages']:
