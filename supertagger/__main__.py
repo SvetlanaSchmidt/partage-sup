@@ -90,6 +90,16 @@ train.add_argument(
     metavar="FILE",
 )
 
+train.add_argument(
+    "--dev",
+    dest="device",
+    required=False,
+    default="cpu",
+    type=str,
+    choices=["cpu", "cuda"],
+    help="device to train on",
+)
+
 
 #################################################
 # TAG

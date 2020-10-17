@@ -17,11 +17,12 @@ def init_model(
     config: JointConfig,
     posset: Set[str],
     stagset: Set[str],
-    embed_path: str
+    embed_path: str,
+    device: str = "cpu",
 ):
     time_begin = datetime.now()
     word_emb = FastText(embed_path, dropout=config['embed']['dropout'])
-    model = RoundRobin(config, posset, stagset, word_emb)
+    model = RoundRobin(config, posset, stagset, word_emb, device=device)
     print(f"# Model initialized in {(datetime.now() - time_begin)}")
     return model
 
@@ -81,7 +82,8 @@ def do_train(args):
     print("# No. of POS tags:", len(posset))
     stagset = set(x.stag for (inp, out) in train_set for x in out)
     print("# No. of supertags:", len(stagset))
-    model = init_model(model_cfg, posset, stagset, args.fast_path)
+    model = init_model(
+        model_cfg, posset, stagset, args.fast_path, args.device)
 
     # Train the model
     for stage in train_cfg['stages']:

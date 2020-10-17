@@ -82,6 +82,8 @@ def format(x, round_decimals=2):
 ##################################################
 
 
+# FIXME: This doesn't fit here, it's not a configuration
+# of the `Embed` model below.
 class EmbedConfig(TypedDict):
     """Configuration of the BiLSTM, contextualiaztion layer"""
     size: int
@@ -94,17 +96,15 @@ class Embed(nn.Module):
     Type: Iterable[Sent] -> PackedSequence
     """
 
-    def __init__(self, word_emb: PreTrained):
+    def __init__(self, word_emb: PreTrained, device='cpu'):
         super().__init__()
         self.word_emb = word_emb
+        self.device = device
 
     def forward(self, batch: Iterable[Sent]) -> PackedSequence:
-        # CPU/GPU device
-        device = get_device()
-
         # We first create embeddings for each sentence
         batch_embs = [
-            self.word_emb.forwards(sent).to(device)
+            self.word_emb.forwards(sent).to(self.device)
             for sent in batch
         ]
 
@@ -229,9 +229,10 @@ class DepParser(nn.Module, Neural[
     AccStats,       # Accuracy stats
 ]):
 
-    def __init__(self, config: DepParserConfig, embed: nn.Module):
+    def __init__(self, config: DepParserConfig, embed: nn.Module, device="cpu"):
         super().__init__()
         self.emb = embed
+        self.device = device
         self.head_repr = MLP(
             in_size=config['inp_size'],
             hid_size=config['hid_size'],
@@ -284,13 +285,17 @@ class DepParser(nn.Module, Neural[
         # Split batch, process input, retrieve golds
         inputs, golds_raw = split_batch(batch)
         preds = self.forward_batch(inputs)
-        golds = list(map(torch.tensor, golds_raw))
+        # golds = list(map(torch.tensor, golds_raw))
+        golds = [
+            torch.tensor(gold, device=self.device)
+            for gold in golds_raw
+        ]
         # Both input list should have the same size
         assert len(golds) == len(preds)
         # Multiclass cross-etropy loss
         criterion = nn.CrossEntropyLoss()
         # Store the dependency parsing loss in a variable
-        arc_loss = torch.tensor(0.0, dtype=torch.float)
+        arc_loss = torch.tensor(0.0, dtype=torch.float, device=self.device)
         # Calculate the loss for each sentence separately
         # (this could be further optimized using padding)
         for pred, gold in zip(preds, golds):
@@ -352,9 +357,14 @@ class Tagger(nn.Module, Neural[
     AccStats,
 ]):
     # def __init__(self, config, tagset: Set[str], word_emb: PreTrained):
-    def __init__(self, config: TaggerConfig, tagset: Set[str], embed: nn.Module):
+    def __init__(
+        self, config: TaggerConfig,
+        tagset: Set[str], embed: nn.Module,
+        device="cpu"
+    ):
         # Required by nn.Module
         super().__init__()
+        self.device = device
         # Encoding (mapping between tags and integers)
         self.tag_enc = Encoding(tagset)
         # Neural sub-modules
@@ -382,7 +392,7 @@ class Tagger(nn.Module, Neural[
         target_pos_ixs = []
         for tag in gold:
             target_pos_ixs.append(self.tag_enc.encode(tag))
-        return torch.tensor(target_pos_ixs)  # .to(device)
+        return torch.tensor(target_pos_ixs).to(self.device)
 
     # def loss(self, gold: List[List[str]], pred: List[Tensor]) -> Tensor:
     def loss(self, batch: List[Tuple[Sent, List[str]]]) -> Tensor:
@@ -447,14 +457,21 @@ class RoundRobin(nn.Module, Neural[
         posset: Set[str],
         stagset: Set[str],
         word_emb: PreTrained,
+        device="cpu"
     ):
         super().__init__()
         # Embedding+contextualization layer
-        self.embed = nn.Sequential(Embed(word_emb), Context(config['context']))
+        self.embed = nn.Sequential(
+            Embed(word_emb, device=device),
+            Context(config['context'])
+        )
         # Modules for the individual tasks
-        self.pos_tagger = Tagger(config['tagger'], posset, self.embed)
-        self.super_tagger = Tagger(config['tagger'], stagset, self.embed)
-        self.dep_parser = DepParser(config['parser'], self.embed)
+        self.pos_tagger = Tagger(
+            config['tagger'], posset, self.embed, device=device)
+        self.super_tagger = Tagger(
+            config['tagger'], stagset, self.embed, device=device)
+        self.dep_parser = DepParser(
+            config['parser'], self.embed, device=device)
         # Internal state, which determines which of the sub-modules gets
         # optimized in a given step (i.e. for which sub-module we calculate
         # the `loss`)
@@ -513,10 +530,10 @@ class RoundRobin(nn.Module, Neural[
         torch.save(state, path)
 
     @staticmethod
-    def load(path, emb) -> 'RoundRobin':
+    def load(path, emb, device="cpu") -> 'RoundRobin':
         # device = get_device()
         # load model state
-        state = torch.load(path)  # , map_location=device)
+        state = torch.load(path, map_location=device)
         # create new Model with config
         model = RoundRobin(
             config=state['config'],
