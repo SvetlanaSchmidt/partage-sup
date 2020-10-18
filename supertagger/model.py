@@ -124,6 +124,7 @@ class BiLSTMConfig(TypedDict):
     out_size: int
     depth: int
     dropout: float
+    out_dropout: float
 
 
 class Context(nn.Module):
@@ -134,15 +135,19 @@ class Context(nn.Module):
 
     def __init__(self, config: BiLSTMConfig):
         super().__init__()
-        self.bilstm = BiLSTM(
-            in_size=config['inp_size'],
-            out_size=config['out_size'],
-            depth=config['depth'],
-            dropout=config['dropout'],
+        self.net = nn.Sequential(
+            BiLSTM(
+                in_size=config['inp_size'],
+                out_size=config['out_size'],
+                depth=config['depth'],
+                dropout=config['dropout'],
+            ),
+            PackedSeqDropout(p=config['out_dropout'])
         )
 
     def forward(self, embs: PackedSequence) -> PackedSequence:
-        return self.bilstm.forward_raw(embs)
+        # return self.out_dropout(self.bilstm(embs))
+        return self.net(embs)
 
 
 class PackedSeqDropout(nn.Module):
@@ -151,12 +156,12 @@ class PackedSeqDropout(nn.Module):
     Type: PackedSequence -> PackedSequence
     """
 
-    def __init__(self, dropout: float):
+    def __init__(self, p: float):
         super().__init__()
-        self.hid_dropout = nn.Dropout(p=dropout, inplace=False)
+        self.dropout = nn.Dropout(p=p, inplace=False)
 
     def forward(self, seq: PackedSequence) -> PackedSequence:
-        seq_data = self.hid_dropout(seq.data)
+        seq_data = self.dropout(seq.data)
         return rnn.PackedSequence(
             seq_data,
             seq.batch_sizes,
@@ -255,6 +260,7 @@ class DepParser(nn.Module, Neural[
             dropout=config['dropout'],
         )
         # A biaffine arc scoring model
+        # TODO: should it take a dropout parameter as well?
         self.heads = BiAffine(repr_size=config['out_size'])
 
         # Move to appropriate device
@@ -366,7 +372,7 @@ class TaggerConfig(TypedDict):
     """Configuration of a tagger"""
     lstm: Optional[BiLSTMConfig]
     inp_size: int
-    dropout: float
+    # dropout: float
 
 
 class Tagger(nn.Module, Neural[
@@ -388,19 +394,14 @@ class Tagger(nn.Module, Neural[
         self.tag_enc = Encoding(tagset)
         # Neural sub-modules
         if config['lstm'] is None:
-            self.net = nn.Sequential(
-                embed,
-                PackedSeqDropout(config['dropout']),
-                Score(config['inp_size'], len(tagset)),
-            )
+            embed_context = embed
         else:
-            self.net = nn.Sequential(
-                embed,
-                # TODO: additional dropout layer?
-                Context(config['lstm']),
-                PackedSeqDropout(config['dropout']),
-                Score(config['inp_size'], len(tagset)),
-            )
+            embed_context = nn.Sequential(embed, Context(config['lstm']))
+        self.net = nn.Sequential(
+            embed,
+            # TODO: Should score take dropout?
+            Score(config['inp_size'], len(tagset)),
+        )
         # Move to appropriate device
         self.to(device)
 

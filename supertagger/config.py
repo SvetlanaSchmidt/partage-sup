@@ -10,7 +10,7 @@ from supertagger.model import \
 emb_size = 100
 embed: EmbedConfig = {
     'size': emb_size,
-    'dropout': 0.1,
+    'dropout': 0.1,     # NOTE: move it to the JointConfig?
 }
 
 ctx_size: int = 200
@@ -19,6 +19,7 @@ context: BiLSTMConfig = {
     'out_size': ctx_size,
     'depth': 2,
     'dropout': 0.1,
+    'out_dropout': 0.1,
 }
 
 pos_tagger: TaggerConfig = {
@@ -27,9 +28,9 @@ pos_tagger: TaggerConfig = {
         'out_size': ctx_size,
         'depth': 2,
         'dropout': 0.1,
+        'out_dropout': 0.1,
     },
     'inp_size': ctx_size*2,
-    'dropout': 0.1,
 }
 
 super_tagger: TaggerConfig = {
@@ -38,9 +39,9 @@ super_tagger: TaggerConfig = {
         'out_size': ctx_size,
         'depth': 2,
         'dropout': 0.1,
+        'out_dropout': 0.1,
     },
     'inp_size': ctx_size*2,
-    'dropout': 0.1,
 }
 
 parser: DepParserConfig = {
@@ -49,6 +50,7 @@ parser: DepParserConfig = {
         'out_size': ctx_size,
         'depth': 2,
         'dropout': 0.1,
+        'out_dropout': 0.1,
     },
     'inp_size': ctx_size*2,
     'hid_size': 100,

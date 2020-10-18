@@ -38,7 +38,7 @@ class BiLSTM(nn.Module):
         # Needed to switch off dropout in training mode
         self.net.dropout = 0.0
 
-    def forward_raw(self, packed: rnn.PackedSequence) -> rnn.PackedSequence:
+    def forward(self, packed: rnn.PackedSequence) -> rnn.PackedSequence:
         packed_hidden, _ = self.net(packed)
         return packed_hidden
 
@@ -46,7 +46,7 @@ class BiLSTM(nn.Module):
     #
     #  -------- forward -----------
     #
-    def forward(self, batch: Sequence[Tensor]) -> rnn.PackedSequence:
+    def pack_forward(self, batch: Sequence[Tensor]) -> rnn.PackedSequence:
         """Contextualize the embeddings for each sentence in the batch.
 
         The method takes on input a list of tensors with shape N x *,
