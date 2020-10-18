@@ -106,7 +106,10 @@ def parse_stag_dist(stags: List[str]) -> Dict[STag, float]:
     """Parse the supertag distribution."""
     xs = []
     for pair in stags:
-        stag, prob = pair.split(":")
+        # stag, prob = pair.split(":")
+        parts = pair.split(":")
+        stag = ':'.join(parts[:-1])
+        prob = parts[-1]
         xs.append((STag(stag), float(prob)))
     return dict(xs)
 
