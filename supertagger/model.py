@@ -398,7 +398,7 @@ class Tagger(nn.Module, Neural[
         else:
             embed_context = nn.Sequential(embed, Context(config['lstm']))
         self.net = nn.Sequential(
-            embed,
+            embed_context,
             # TODO: Should score take dropout?
             Score(config['inp_size'], len(tagset)),
         )
