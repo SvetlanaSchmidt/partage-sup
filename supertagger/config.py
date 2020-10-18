@@ -3,7 +3,8 @@ from typing import TypedDict, List, Tuple
 
 from supertagger.neural.training import TrainConfig
 from supertagger.model import \
-    TaggerConfig, DepParserConfig, ContextConfig, EmbedConfig, JointConfig
+    EmbedConfig, BiLSTMConfig, \
+    TaggerConfig, DepParserConfig, JointConfig
 
 
 emb_size = 100
@@ -13,19 +14,42 @@ embed: EmbedConfig = {
 }
 
 ctx_size: int = 200
-context: ContextConfig = {
+context: BiLSTMConfig = {
     'inp_size': emb_size,
     'out_size': ctx_size,
-    'depth': 3,
+    'depth': 2,
     'dropout': 0.1,
 }
 
-tagger: TaggerConfig = {
+pos_tagger: TaggerConfig = {
+    'lstm': {
+        'inp_size': ctx_size*2,
+        'out_size': ctx_size,
+        'depth': 2,
+        'dropout': 0.1,
+    },
+    'inp_size': ctx_size*2,
+    'dropout': 0.1,
+}
+
+super_tagger: TaggerConfig = {
+    'lstm': {
+        'inp_size': ctx_size*2,
+        'out_size': ctx_size,
+        'depth': 2,
+        'dropout': 0.1,
+    },
     'inp_size': ctx_size*2,
     'dropout': 0.1,
 }
 
 parser: DepParserConfig = {
+    'lstm': {
+        'inp_size': ctx_size*2,
+        'out_size': ctx_size,
+        'depth': 2,
+        'dropout': 0.1,
+    },
     'inp_size': ctx_size*2,
     'hid_size': 100,
     'out_size': 100,
@@ -35,7 +59,8 @@ parser: DepParserConfig = {
 model: JointConfig = {
     'embed': embed,
     'context': context,
-    'tagger': tagger,
+    'pos_tagger': pos_tagger,
+    'super_tagger': super_tagger,
     'parser': parser,
 }
 

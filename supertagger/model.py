@@ -118,7 +118,7 @@ class Embed(nn.Module):
         return rnn.pack_sequence(batch_embs, enforce_sorted=False)
 
 
-class ContextConfig(TypedDict):
+class BiLSTMConfig(TypedDict):
     """Configuration of the BiLSTM, contextualization layer"""
     inp_size: int
     out_size: int
@@ -132,7 +132,7 @@ class Context(nn.Module):
     Type: PackedSequence -> PackedSequence
     """
 
-    def __init__(self, config: ContextConfig):
+    def __init__(self, config: BiLSTMConfig):
         super().__init__()
         self.bilstm = BiLSTM(
             in_size=config['inp_size'],
@@ -216,6 +216,7 @@ class Packed2Padded(nn.Module):
 
 class DepParserConfig(TypedDict):
     """Configuration of a dependency parser"""
+    lstm: Optional[BiLSTMConfig]
     inp_size: int
     hid_size: int
     out_size: int
@@ -233,6 +234,14 @@ class DepParser(nn.Module, Neural[
         super().__init__()
         self.emb = embed
         self.device = device
+
+        # BiLSTM (if any)
+        if config['lstm'] is None:
+            self.lstm = None
+        else:
+            self.lstm = Context(config['lstm'])
+
+        # Head and dependent representations
         self.head_repr = MLP(
             in_size=config['inp_size'],
             hid_size=config['hid_size'],
@@ -247,12 +256,19 @@ class DepParser(nn.Module, Neural[
         )
         # A biaffine arc scoring model
         self.heads = BiAffine(repr_size=config['out_size'])
+
         # Move to appropriate device
         self.to(device)
 
     def forward_batch(self, batch: List[Sent]) -> List[Tensor]:
         # Calculate the embeddings and contextualize them
         ctxs = self.emb(batch)
+
+        # If local LSTM, apply it again
+        if self.lstm is not None:
+            # print("BEFORE:", ctxs.data.shape)
+            ctxs = self.lstm(ctxs)
+            # print("AFTER:", ctxs.data.shape)
 
         # Convert packed representation to a padded representation
         padded, length = rnn.pad_packed_sequence(ctxs, batch_first=True)
@@ -348,6 +364,7 @@ class DepParser(nn.Module, Neural[
 
 class TaggerConfig(TypedDict):
     """Configuration of a tagger"""
+    lstm: Optional[BiLSTMConfig]
     inp_size: int
     dropout: float
 
@@ -370,11 +387,20 @@ class Tagger(nn.Module, Neural[
         # Encoding (mapping between tags and integers)
         self.tag_enc = Encoding(tagset)
         # Neural sub-modules
-        self.net = nn.Sequential(
-            embed,
-            PackedSeqDropout(config['dropout']),
-            Score(config['inp_size'], len(tagset)),
-        )
+        if config['lstm'] is None:
+            self.net = nn.Sequential(
+                embed,
+                PackedSeqDropout(config['dropout']),
+                Score(config['inp_size'], len(tagset)),
+            )
+        else:
+            self.net = nn.Sequential(
+                embed,
+                # TODO: additional dropout layer?
+                Context(config['lstm']),
+                PackedSeqDropout(config['dropout']),
+                Score(config['inp_size'], len(tagset)),
+            )
         # Move to appropriate device
         self.to(device)
 
@@ -427,10 +453,11 @@ class Tagger(nn.Module, Neural[
 
 class JointConfig(TypedDict):
     """Configuration of the BiLSTM, contextualiaztion layer"""
-    embed: EmbedConfig
-    context: ContextConfig
-    tagger: TaggerConfig
-    parser: DepParserConfig
+    embed: EmbedConfig          # Embedding layer
+    context: BiLSTMConfig       # Common BiLSTM layer
+    pos_tagger: TaggerConfig    # POS tagger
+    super_tagger: TaggerConfig  # Supertagger
+    parser: DepParserConfig     # Dependency parser
 
 
 @dataclass(frozen=True)
@@ -471,9 +498,9 @@ class RoundRobin(nn.Module, Neural[
         )
         # Modules for the individual tasks
         self.pos_tagger = Tagger(
-            config['tagger'], posset, self.embed, device=device)
+            config['pos_tagger'], posset, self.embed, device=device)
         self.super_tagger = Tagger(
-            config['tagger'], stagset, self.embed, device=device)
+            config['super_tagger'], stagset, self.embed, device=device)
         self.dep_parser = DepParser(
             config['parser'], self.embed, device=device)
         # Internal state, which determines which of the sub-modules gets
