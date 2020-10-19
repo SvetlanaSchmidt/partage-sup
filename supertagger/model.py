@@ -73,10 +73,6 @@ class FullStats(ScoreStats):
         return f"[POS={pos_acc:05.2f} UAS={uas:05.2f} STag={stag_acc:05.2f}]"
 
 
-def format(x, round_decimals=2):
-    return round(x, round_decimals)
-
-
 ##################################################
 # Various neural modules
 ##################################################
