@@ -1,5 +1,5 @@
 from typing import Set, Iterable, List, Sequence, Tuple, Optional, \
-    Any, TypeVar, TypedDict
+    Any, TypeVar, TypedDict, Dict
 from dataclasses import dataclass
 # import enum
 
@@ -304,6 +304,19 @@ class DepParser(nn.Module, Neural[
             heads.append(ix)
         return heads
 
+    def decode_dist(self, scores: Tensor, nbest: int) -> List[Dict[int, float]]:
+        """Variant of `dist` which returns distributions."""
+        heads = []
+        probs = torch.softmax(scores, dim=1)
+        for prob in probs:
+            dist = []
+            prob_sorted, indices = torch.sort(prob, descending=True)
+            for k, prob in zip(range(nbest), prob_sorted):
+                ix = int(indices[k])
+                dist.append((ix, prob))
+            heads.append(dict(dist))
+        return heads
+
     # def loss(self, golds_raw: List[List[int]], preds: List[Tensor]) -> Tensor:
     def loss(self, batch: List[Tuple[Sent, List[int]]]) -> Tensor:
         # Split batch, process input, retrieve golds
@@ -419,6 +432,19 @@ class Tagger(nn.Module, Neural[
             tags.append(self.tag_enc.decode(ix))
         return tags
 
+    def decode_dist(self, scores: Tensor, nbest: int) -> List[Dict[str, float]]:
+        """Variant of `dist` which returns distributions."""
+        tags = []
+        probs = torch.softmax(scores, dim=1)
+        for prob in probs:
+            dist = []
+            prob_sorted, indices = torch.sort(prob, descending=True)
+            for k, prob in zip(range(nbest), prob_sorted):
+                ix = int(indices[k])
+                dist.append((self.tag_enc.decode(ix), prob))
+            tags.append(dict(dist))
+        return tags
+
     def encode(self, gold: List[str]) -> Tensor:
         target_pos_ixs = []
         for tag in gold:
@@ -465,18 +491,26 @@ class JointConfig(TypedDict):
 
 @dataclass(frozen=True)
 class Out:
-    """Per-token output (which we want to predict)"""
+    """Per-token output (which the model is supposed to predict)"""
     pos: str    # POS tag
     head: int   # Dependency head
     stag: str   # Supertag
 
 
 @dataclass(frozen=True)
+class OutDist:
+    """N-best variant of `Out`"""
+    pos: Dict[str, float]   # POS tag
+    head: Dict[int, float]  # Dependency head
+    stag: Dict[str, float]  # Supertag
+
+
+@dataclass(frozen=True)
 class Pred:
     """Predicted tensors (tensor representation of `Out`)"""
-    posP: Tensor
-    headP: Tensor
-    stagP: Tensor
+    pos: Tensor
+    head: Tensor
+    stag: Tensor
 
 
 class RoundRobin(nn.Module, Neural[
@@ -526,19 +560,30 @@ class RoundRobin(nn.Module, Neural[
 
     def forward(self, sent: Sent) -> Pred:
         return Pred(
-            posP = self.pos_tagger(sent),
-            headP = self.dep_parser(sent),
-            stagP = self.super_tagger(sent),
+            pos = self.pos_tagger(sent),
+            head = self.dep_parser(sent),
+            stag = self.super_tagger(sent),
         )
 
     def decode(self, pred: Pred) -> List[Out]:
-        heads = self.dep_parser.decode(pred.headP)
-        tags = self.pos_tagger.decode(pred.posP)
-        stags = self.super_tagger.decode(pred.stagP)
+        heads = self.dep_parser.decode(pred.head)
+        tags = self.pos_tagger.decode(pred.pos)
+        stags = self.super_tagger.decode(pred.stag)
         assert len(heads) == len(tags) == len(stags)
         outs = []
         for k in range(len(heads)):
             outs.append(Out(pos=tags[k], head=heads[k], stag=stags[k]))
+        return outs
+
+    def decode_dist(self, pred: Pred, nbest: int) -> List[OutDist]:
+        """Variant of `dist` which returns distributions."""
+        heads = self.dep_parser.decode_dist(pred.head, nbest)
+        tags = self.pos_tagger.decode_dist(pred.pos, nbest)
+        stags = self.super_tagger.decode_dist(pred.stag, nbest)
+        assert len(heads) == len(tags) == len(stags)
+        outs = []
+        for k in range(len(heads)):
+            outs.append(OutDist(pos=tags[k], head=heads[k], stag=stags[k]))
         return outs
 
     def loss(self, batch: List[Tuple[Sent, List[Out]]]) -> Tensor:

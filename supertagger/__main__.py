@@ -131,6 +131,15 @@ tag.add_argument(
     metavar="FILE",
 )
 
+tag.add_argument(
+    "-n", "--nbest",
+    dest="nbest",
+    required=False,
+    default=1,
+    type=int,
+    help="print n-best supertags/heads",
+)
+
 
 #################################################
 # EVAL

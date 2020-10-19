@@ -15,13 +15,18 @@ def do_tag(args):
         with eval_on(model):
             for sent in data.read_supertags(args.input_path):
                 inp = [tok.word_form for tok in sent]
-                out = model.decode(model.forward(inp))
+                out = model.decode_dist(model.forward(inp), nbest=args.nbest)
                 sent = [
                     data.Token(
                         tok_id=i+1,
                         word_form=x,
-                        head_dist={y.head: 1},
-                        stag_dist={data.STag(y.stag): 1}
+                        # head_dist={y.head: 1},
+                        # stag_dist={data.STag(y.stag): 1}
+                        head_dist=y.head,
+                        stag_dist=dict(
+                            (data.STag(stag), prob)
+                            for stag, prob in y.stag.items()
+                        )
                     )
                     for i, x, y in zip(range(len(inp)), inp, out)
                 ]
