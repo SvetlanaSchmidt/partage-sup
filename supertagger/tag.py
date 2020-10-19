@@ -2,7 +2,7 @@ import torch
 
 from supertagger.neural.utils import eval_on
 from supertagger.neural.embedding.fasttext import FastText
-from supertagger.model import RoundRobin
+from supertagger.model.joint import RoundRobin
 import supertagger.data as data
 
 

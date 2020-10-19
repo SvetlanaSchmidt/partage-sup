@@ -4,12 +4,11 @@ from datetime import datetime
 import json
 
 import torch
-import torch.nn as nn
 
 from supertagger.neural.training import train
 from supertagger.neural.embedding.fasttext import FastText
 
-from supertagger.model import RoundRobin, Out, JointConfig
+from supertagger.model.joint import RoundRobin, Out, JointConfig
 import supertagger.config as cfg
 import supertagger.data as data
 

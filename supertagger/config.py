@@ -1,8 +1,5 @@
-from typing import TypedDict, List, Tuple
-
-
 from supertagger.neural.training import TrainConfig
-from supertagger.model import \
+from supertagger.model.joint import \
     EmbedConfig, BiLSTMConfig, \
     TaggerConfig, DepParserConfig, JointConfig
 

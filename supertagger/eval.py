@@ -1,7 +1,7 @@
 from itertools import zip_longest
 
 import supertagger.data as data
-from supertagger.model import full_stats
+from supertagger.model.joint import full_stats
 from supertagger.train import preprocess
 
 

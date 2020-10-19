@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Iterable, List, TypedDict
+from typing import List, Tuple, Iterable, TypedDict
 
 from datetime import datetime
 
 import torch
-import torch.nn as nn
 from torch.optim import Adam
 from torch.utils.data import Dataset
 
 # import supertagger.neural.proto
 from supertagger.neural.proto import \
-    ScoreStats, Neural, Inp, Out, Y, S
+    Neural, Inp, Out, Y, S
 from supertagger.neural.utils import \
     batch_loader, simple_loader, eval_on
 
@@ -103,7 +102,8 @@ def train(
             loss = neural.loss(batch)
             loss.backward()
 
-            # # scaling the gradients down, places a limit on the size of the parameter updates
+            # # scaling the gradients down, places a limit on the size
+            # # of the parameter updates
             # # https://pytorch.org/docs/stable/nn.html#clip-grad-norm
             # nn.utils.clip_grad_norm_(neural.module().parameters(), clip)
 
@@ -117,7 +117,7 @@ def train(
             # https://discuss.pytorch.org/t/calling-loss-backward-reduce-memory-usage/2735
             del loss
 
-       # reporting (every `report_rate` epochs)
+        # reporting (every `report_rate` epochs)
         if (t + 1) % report_rate == 0:
             # with torch.no_grad():
 
