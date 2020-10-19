@@ -85,10 +85,11 @@ def train(
     # device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # model = neural.model.to(device)
 
+    # To report training time (once in a while)
+    train_time_begin = datetime.now()
+
     # Perform SGD in a loop
     for t in range(epoch_num):
-        time_begin = datetime.now()
-
         train_loss: float = 0.0
 
         # We use a PyTorch DataLoader to provide a stream of
@@ -133,13 +134,17 @@ def train(
             if dev_set:
                 dev_score = batch_score(neural, simple_loader(dev_set))
 
+            # training time
+            train_time_so_far = datetime.now() - train_time_begin
+            train_time_begin = datetime.now()
+
             # print stats
             msg = (
                 "@{k}: \t"
                 "loss(train)={tl:f} \t"
                 "score(train)={ta} \t"
                 "score(dev)={da} \t"
-                "time(epoch)={ti}"
+                "time={ti}"
             )
 
             print(
@@ -148,6 +153,6 @@ def train(
                     tl=train_loss,
                     ta=train_score.report(),
                     da=dev_score.report() if dev_score else "n/a",
-                    ti=datetime.now() - time_begin
+                    ti=train_time_so_far
                 )
             )
