@@ -97,18 +97,18 @@ git submodule update --init --recursive
 
 To run the supertagger on the French TWG dataset:
 ```bash
-produce data/exp.300/dev.eval
+produce data/baseline.300/avg.dev.eval
 ```
 This will download the corresponding [fastText][fastText] French model, train
-the supertagging model, and output the evaluation scores on the dev set (you
-can replace `dev` with `test` in the command above to get the results on the
-test set).
+several supertagging models, and output the average evaluation scores on the
+dev set (you can replace `dev` with `test` in the command above to get the
+results on the test set).
 
 To speed up the process, you can alternatively run an experiment with a
 smaller, [100-dimensional fastText model][fastText-fr-small] using the
 following command:
 ```bash
-produce data/exp.100/dev.eval
+produce data/baseline.100/avg.dev.eval
 ```
 Note that, due to a reduced size of the embedding model, the evaluation scores
 may be significantly lower in this setting.  Official [fastText][fastText]
@@ -116,6 +116,11 @@ models are 300-dimensional and the one required for this experiment was
 obtained using the Python `fasttext.util.reduce_model` function (see [this
 thread][fastText-reduction]).
 
+To train a single supertagging model instead, run:
+```bash
+produce data/baseline.100/1/avg.dev.eval
+```
+you can replace `1` in the command above by any directory name.
 
 
 [partage-format]: https://github.com/kawu/partage#data-format "ParTAGe data format"
