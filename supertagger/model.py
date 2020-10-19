@@ -456,6 +456,8 @@ class JointConfig(TypedDict):
     """Configuration of the BiLSTM, contextualiaztion layer"""
     embed: EmbedConfig          # Embedding layer
     context: BiLSTMConfig       # Common BiLSTM layer
+    tag_context: Optional[BiLSTMConfig]
+                                # Common tagger/suppertagger BiLSTM layer
     pos_tagger: TaggerConfig    # POS tagger
     super_tagger: TaggerConfig  # Supertagger
     parser: DepParserConfig     # Dependency parser
@@ -497,11 +499,18 @@ class RoundRobin(nn.Module, Neural[
             Embed(word_emb, device=device),
             Context(config['context'])
         )
+        # Extend the embedding+context layer with separate context layer
+        # for the taggers (if config provided)
+        if config['tag_context'] is None:
+            self.tag_embed = self.embed
+        else:
+            tag_context = Context(config['tag_context'])
+            self.tag_embed = nn.Sequential(self.embed, tag_context)
         # Modules for the individual tasks
         self.pos_tagger = Tagger(
-            config['pos_tagger'], posset, self.embed, device=device)
+            config['pos_tagger'], posset, self.tag_embed, device=device)
         self.super_tagger = Tagger(
-            config['super_tagger'], stagset, self.embed, device=device)
+            config['super_tagger'], stagset, self.tag_embed, device=device)
         self.dep_parser = DepParser(
             config['parser'], self.embed, device=device)
         # Internal state, which determines which of the sub-modules gets

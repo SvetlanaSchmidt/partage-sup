@@ -23,24 +23,26 @@ context: BiLSTMConfig = {
 }
 
 pos_tagger: TaggerConfig = {
-    'lstm': {
-        'inp_size': ctx_size*2,
-        'out_size': ctx_size,
-        'depth': 2,
-        'dropout': 0.1,
-        'out_dropout': 0.1,
-    },
+    'lstm': None,
+    # {
+    #     'inp_size': ctx_size*2,
+    #     'out_size': ctx_size,
+    #     'depth': 2,
+    #     'dropout': 0.1,
+    #     'out_dropout': 0.1,
+    # },
     'inp_size': ctx_size*2,
 }
 
 super_tagger: TaggerConfig = {
-    'lstm': {
-        'inp_size': ctx_size*2,
-        'out_size': ctx_size,
-        'depth': 2,
-        'dropout': 0.1,
-        'out_dropout': 0.1,
-    },
+    'lstm': None,
+    # {
+    #     'inp_size': ctx_size*2,
+    #     'out_size': ctx_size,
+    #     'depth': 2,
+    #     'dropout': 0.1,
+    #     'out_dropout': 0.1,
+    # },
     'inp_size': ctx_size*2,
 }
 
@@ -61,6 +63,13 @@ parser: DepParserConfig = {
 model: JointConfig = {
     'embed': embed,
     'context': context,
+    'tag_context': {
+            'inp_size': ctx_size*2,
+            'out_size': ctx_size,
+            'depth': 2,
+            'dropout': 0.1,
+            'out_dropout': 0.1,
+        },
     'pos_tagger': pos_tagger,
     'super_tagger': super_tagger,
     'parser': parser,
