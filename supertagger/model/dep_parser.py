@@ -20,6 +20,7 @@ class DepParserConfig(TypedDict):
     hid_size: int
     out_size: int
     dropout: float
+    out_dropout: float
 
 
 class DepParser(nn.Module, Neural[
@@ -47,12 +48,14 @@ class DepParser(nn.Module, Neural[
             hid_size=config['hid_size'],
             out_size=config['out_size'],
             dropout=config['dropout'],
+            out_dropout=config['out_dropout'],
         )
         self.dep_repr = MLP(
             in_size=config['inp_size'],
             hid_size=config['hid_size'],
             out_size=config['out_size'],
             dropout=config['dropout'],
+            out_dropout=config['out_dropout'],
         )
         # A biaffine arc scoring model
         # TODO: should it take a dropout parameter as well?
