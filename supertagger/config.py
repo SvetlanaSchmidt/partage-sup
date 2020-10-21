@@ -54,8 +54,7 @@ parser: DepParserConfig = {
     'inp_size': ctx_size*2,
     'hid_size': 100,
     'out_size': 100,
-    'dropout': 0.1,
-    'out_dropout': 0.1,
+    'dropout': 0.1
 }
 
 model: JointConfig = {
