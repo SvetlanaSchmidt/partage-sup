@@ -1,0 +1,12 @@
+{
+  "embed": {"size": 300, "dropout": 0.1},
+  "context": {"inp_size": 300, "out_size": 200, "depth": 2, "dropout": 0.1, "out_dropout": 0.1},
+  "tag_context": null,
+  "pos_tagger": {"lstm": {"inp_size": 400, "out_size": 200, "depth": 2, "dropout": 0.1, "out_dropout": 0.1}, "inp_size": 400},
+  "super_tagger": {"lstm": {"inp_size": 400, "out_size": 200, "depth": 2, "dropout": 0.1, "out_dropout": 0.1}, "inp_size": 400},
+  "parser": {
+    "lstm": {"inp_size": 400, "out_size": 200, "depth": 2, "dropout": 0.1, "out_dropout": 0.1},
+    "inp_size": 400, "hid_size": 100, "out_size": 100, "dropout": 0.1
+  }
+}
+
