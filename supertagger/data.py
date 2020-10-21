@@ -50,13 +50,13 @@ class Token:
         """Retrieve the supertag with the highest probability."""
         return self.dist2list(self.stag_dist)[0][0]
 
-    def render(self, decimal: int = 6) -> str:
+    def render(self) -> str:
         head_str = '|'.join(
-            f"{head}:{prob:.{decimal}f}"
+            f"{head}:{prob:e}"
             for head, prob in self.dist2list(self.head_dist)
         )
         stag_str = '\t'.join(
-            f"{stag.stag_str}:{prob:.{decimal}f}"
+            f"{stag.stag_str}:{prob:e}"
             for stag, prob in self.dist2list(self.stag_dist)
         )
         return f"{self.tok_id}\t{self.word_form}\t{head_str}\t{stag_str}"
