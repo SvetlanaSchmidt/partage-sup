@@ -79,7 +79,7 @@ train: TrainConfig = {
         {'epoch_num': 30, 'learning_rate': 0.0005},
     ],
     'report_rate': 10,
-    'batch_size': 32,
+    'batch_size': 64,
     'shuffle': True,
     'cuda': True,   # Use CUDA if possible
 }
