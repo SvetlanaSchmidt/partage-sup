@@ -8,14 +8,31 @@ import discodop.tree as disco  # type: ignore
 ANCHOR = "<>"
 
 
+# FIXME: can't do post-initialization when frozen=True, but we need it to
+# normalize the string representation of the supertag.  Python 3.9
+# supposedly provides a fix for that (see
+# https://stackoverflow.com/questions/57893902/how-can-i-set-an-attribute-in-a-frozen-dataclass-custom-init-method)
 @dataclass(frozen=True)
-class STag:
-    """Supertag"""
+class STagNorm:
+    """Supertag
+
+    WARNING: do not initlize it directly, use the smart constructor mk_stag!
+    """
     stag_str: str
 
     def as_tree(self) -> Tuple[disco.ParentedTree, List[Optional[str]]]:
         """Present the supertag as a (disco-dop) tree."""
         return disco.brackettree(self.stag_str)
+
+
+def mk_stag(stag_str: str) -> STagNorm:
+    tree, terms = disco.brackettree(stag_str)
+    norm_str = disco.writebrackettree(tree, terms).strip()
+    # if stag_str != norm_str:
+    #     print("NORM:")
+    #     print("> INP:", stag_str)
+    #     print("> OUT:", norm_str)
+    return STagNorm(norm_str)
 
 
 def tree_pos(
@@ -40,13 +57,13 @@ class Token:
     tok_id: int     # ID of the token (basically its position in the sentence)
     word_form: str  # Word form
     head_dist: Dict[int, float]     # Head distribution (non-empty)
-    stag_dist: Dict[STag, float]    # Supertag distribution (non-empty)
+    stag_dist: Dict[STagNorm, float]    # Supertag distribution (non-empty)
 
     def best_head(self) -> int:
         """Retrieve the head with the highest probability."""
         return self.dist2list(self.head_dist)[0][0]
 
-    def best_stag(self) -> STag:
+    def best_stag(self) -> STagNorm:
         """Retrieve the supertag with the highest probability."""
         return self.dist2list(self.stag_dist)[0][0]
 
@@ -102,7 +119,7 @@ def parse_head_dist(heads: str) -> Dict[int, float]:
     return dict(xs)
 
 
-def parse_stag_dist(stags: List[str]) -> Dict[STag, float]:
+def parse_stag_dist(stags: List[str]) -> Dict[STagNorm, float]:
     """Parse the supertag distribution."""
     xs = []
     for pair in stags:
@@ -110,7 +127,7 @@ def parse_stag_dist(stags: List[str]) -> Dict[STag, float]:
         parts = pair.split(":")
         stag = ':'.join(parts[:-1])
         prob = parts[-1]
-        xs.append((STag(stag), float(prob)))
+        xs.append((mk_stag(stag), float(prob)))
     return dict(xs)
 
 
