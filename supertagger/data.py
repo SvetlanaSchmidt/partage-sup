@@ -8,6 +8,8 @@ import discodop.tree as disco  # type: ignore
 ANCHOR = "<>"
 
 
+# FIXME: Rename as STag (STagNorm is a provisional name used to make sure
+# that STag is not used anymore to construct supertags).
 # FIXME: can't do post-initialization when frozen=True, but we need it to
 # normalize the string representation of the supertag.  Python 3.9
 # supposedly provides a fix for that (see
@@ -16,7 +18,7 @@ ANCHOR = "<>"
 class STagNorm:
     """Supertag
 
-    WARNING: do not initlize it directly, use the smart constructor mk_stag!
+    WARNING: do not initlize directly, use the smart constructor `mk_stag`!
     """
     stag_str: str
 
@@ -26,6 +28,7 @@ class STagNorm:
 
 
 def mk_stag(stag_str: str) -> STagNorm:
+    """A smart constructor used to create a normalized supertag."""
     tree, terms = disco.brackettree(stag_str)
     norm_str = disco.writebrackettree(tree, terms).strip()
     # if stag_str != norm_str:

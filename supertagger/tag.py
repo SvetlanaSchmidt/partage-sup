@@ -21,10 +21,10 @@ def do_tag(args):
                         tok_id=i+1,
                         word_form=x,
                         # head_dist={y.head: 1},
-                        # stag_dist={data.STag(y.stag): 1}
+                        # stag_dist={data.mk_stag(y.stag): 1}
                         head_dist=y.head,
                         stag_dist=dict(
-                            (data.STag(stag), prob)
+                            (data.mk_stag(stag), prob)
                             for stag, prob in y.stag.items()
                         )
                     )
