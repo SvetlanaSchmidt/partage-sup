@@ -1,15 +1,14 @@
-TWG Supertagger
-===============
+TAG/TWG Supertagger
+===================
 
-This repository contains a [PyTorch][pytorch]-based implementation of a TAG/TWG
-supertagger.
+This repository contains a [ParTAGe][partage-twg]-compliant,
+[PyTorch][pytorch]-based implementation of a TAG/TWG supertagger.
 
 
 **Table of Contents**
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Experiments](#experiments)
 
 
 Installation
@@ -34,12 +33,6 @@ pip install -r requirements-gpu.txt
 Finally, install `disco-dop` from its [github
 repository](https://github.com/andreasvc/disco-dop#installation) (the [version
 on PyPI](https://pypi.org/project/disco-dop/) is outdated).
-<!---
-(**warning**: if you use conda, you should probably *not* use `-\-user` when
-`pip`-installing disco-dop).
-
-Discodop require `make install`, is it possible to put it in `requirements.txt`?
--->
 
 
 Usage
@@ -87,44 +80,7 @@ python -m supertagger blind -i input.supertags > input.blind.supertags
 ```
 
 
-Experiments
------------
-
-First make sure that the `TWG` sub-module is available.  If not sure, run:
-```bash
-git submodule update --init --recursive
-```
-
-To run the supertagger on the French TWG dataset:
-```bash
-produce data/baseline.300/avg.dev.eval
-```
-This will download the corresponding [fastText][fastText] French model, train
-several supertagging models, and output the average evaluation scores on the
-dev set (you can replace `dev` with `test` in the command above to get the
-results on the test set).
-
-To speed up the process, you can alternatively run an experiment with a
-smaller, [100-dimensional fastText model][fastText-fr-small] using the
-following command:
-```bash
-produce data/baseline.100/avg.dev.eval
-```
-Note that, due to a reduced size of the embedding model, the evaluation scores
-may be significantly lower in this setting.  Official [fastText][fastText]
-models are 300-dimensional and the one required for this experiment was
-obtained using the Python `fasttext.util.reduce_model` function (see [this
-thread][fastText-reduction]).
-
-To train a single supertagging model instead, run:
-```bash
-produce data/baseline.100/1/avg.dev.eval
-```
-you can replace `1` in the command above by any directory name.
-
-
-[partage-format]: https://github.com/kawu/partage#data-format "ParTAGe data format"
+[partage-twg]: https://github.com/kawu/partage-twg "ParTAGe for TWG repository"
+[partage-format]: https://github.com/kawu/partage-twg#data-format "ParTAGe data format"
 [fastText]: https://fasttext.cc/ "fastText"
 [pytorch]: https://pytorch.org/ "PyTorch"
-[fastText-reduction]: https://stackoverflow.com/questions/58930298/reducing-size-of-facebooks-fasttext-word2vec "Reducing the size of fastText models"
-[fastText-fr-small]: https://user.phil.hhu.de/~waszczuk/treegrasp/fasttext/cc.fr.100.bin.gz "100-dimensional fastText French model"
