@@ -21,6 +21,11 @@ name of the environment):
 conda create --name <env-name> python=3.8
 conda activate <env-name>
 ```
+Then, to install the tool (together with its dependencies), run:
+```bash
+pip install .
+```
+<!--
 Then, to install the dependencies, including PyTorch with CPU support:
 ```bash
 pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
@@ -30,9 +35,9 @@ instead:
 ```bash
 pip install -r requirements-gpu.txt
 ```
+-->
 Finally, install `disco-dop` from its [github
-repository](https://github.com/andreasvc/disco-dop#installation) (the [version
-on PyPI](https://pypi.org/project/disco-dop/) is outdated).
+repository](https://github.com/andreasvc/disco-dop#installation).
 
 
 Usage
