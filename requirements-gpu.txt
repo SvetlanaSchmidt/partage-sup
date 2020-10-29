@@ -1,3 +1,2 @@
 torch==1.6.0
 fasttext==0.9.2
-produce==0.4.1
