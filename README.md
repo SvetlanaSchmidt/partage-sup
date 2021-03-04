@@ -51,17 +51,17 @@ The tool supports the same format as [partage][partage-format].
 
 The model (embedding size, BiLSTM depth, etc.) and training (number of epochs,
 learning rates, etc.) configuration is currently hard-coded in
-[supertagger/config.py](supertagger/config.py).  It be replaced during training
-by providing appropriate `.json` configuration files.
+[supertagger/config.py](supertagger/config.py).  It can be replaced during
+training by providing appropriate `.json` configuration files.
 
 #### Training
 
 To train a supertagging model, you will need:
-* `fastText.bin`: a binary [fastText][fastText] model (**important**: the size
-  of the fastText model must be specified in the
+* `fastText.bin`: binary [fastText][fastText] model (**important**: the
+  embedding size of the model must be specified in the
   [configuration](#configuration))
-* `train.supertags`: a training dataset (see [data format](#data-format))
-* `dev.supertags` (optional): a development dataset
+* `train.supertags`: training dataset (see [data format](#data-format))
+* `dev.supertags` (optional): development dataset
 
 Then, to train a model and save it in `model.pth`:
 ```bash
