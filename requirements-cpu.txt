@@ -1,2 +1,2 @@
-torch==1.6.0+cpu
+torch==1.8.0+cpu
 fasttext==0.9.2
